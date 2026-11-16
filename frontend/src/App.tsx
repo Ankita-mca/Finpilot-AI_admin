@@ -1,4 +1,4 @@
-// FinPilot AI - Invoice Module Improved
+﻿// FinPilot AI - Invoice Module Improved
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { MarkdownAnswer } from './components/MarkdownAnswer'
 import {
@@ -20,7 +20,7 @@ import {
 
 type Page = 'Overview' | 'Invoices' | 'Customers' | 'Payments' | 'Aging report' |
   'Reminders' | /*'Reconciliation' |*/ /*'Forecast' |*/ 'AI Assistant' |
-  /*'Audit Log' |*/ 'Settings' | 'Notifications' | 'Products'
+  /*'Audit Log' |*/ 'Settings' | 'Notifications' | 'Products' | 'Customers owing' | 'Due in 7 days'
 
 // ── GST preview helper (display-only; the server recalculates on save) ──────
 // Mirrors the backend: round-half-up to the nearest paise.
@@ -632,15 +632,15 @@ function CreateOrgScreen({ user, onCreated, onLogout }: { user: User; onCreated:
 
 // ── Metric card ────────────────────────────────────────────────────────────
 
-function Metric({ icon, title, value, note, tone }: { icon: React.ReactNode; title: string; value: string | number; note: string; tone: string }) {
-  return (
-    <article className="metric">
-      <div className="metric-top"><div className={`metric-icon ${tone}`}>{icon}</div></div>
-      <div className="metric-title">{title}</div>
-      <div className="metric-value">{value}</div>
-      <div className="metric-note">{note}</div>
-    </article>
-  )
+function Metric({ icon, title, value, note, tone, onClick }: { icon: React.ReactNode; title: string; value: string | number; note: string; tone: string; onClick?: () => void }) {
+  const inner = <>
+    <div className="metric-top"><div className={`metric-icon ${tone}`}>{icon}</div></div>
+    <div className="metric-title">{title}</div>
+    <div className="metric-value">{value}</div>
+    <div className="metric-note">{note}</div>
+  </>
+  if (onClick) return <button className="metric metric-clickable" onClick={onClick} type="button">{inner}</button>
+  return <article className="metric">{inner}</article>
 }
 
 // ── Status badge ───────────────────────────────────────────────────────────
@@ -1412,7 +1412,9 @@ export default function App() {
   const [editingRate, setEditingRate] = useState<GSTRate | null>(null)
   const [notice, setNotice] = useState('')
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(true)
+  const [showAllOutstanding, setShowAllOutstanding] = useState(false)
 
   // Logout state
   const [logoutConfirm, setLogoutConfirm] = useState(false)
@@ -1580,7 +1582,8 @@ export default function App() {
   if (!org) return <CreateOrgScreen user={user} onCreated={o => { setOrg(o); loadData(o) }} onLogout={logout} />
 
   const filtered = invoices.filter(i =>
-    `${i.invoice_number} ${i.customer_name}`.toLowerCase().includes(query.toLowerCase())
+    `${i.invoice_number} ${i.customer_name}`.toLowerCase().includes(query.toLowerCase()) &&
+    (!statusFilter || i.display_status === statusFilter)
   )
 
   const nav: { name: Page; icon: React.ElementType; soon?: boolean }[] = [
@@ -1634,7 +1637,7 @@ export default function App() {
         <div className="nav-label">WORKSPACE</div>
         <nav>
           {nav.map(n => (
-            <button key={n.name} className={`nav-item ${page === n.name ? 'active' : ''}`} onClick={() => setPage(n.name)}>
+            <button key={n.name} className={`nav-item ${page === n.name ? 'active' : ''}`} onClick={() => { setPage(n.name); setQuery(''); setStatusFilter('') }}>
               <n.icon size={17} />{n.name}
               {n.soon && <span className="soon">SOON</span>}
             </button>
@@ -1709,9 +1712,9 @@ export default function App() {
           {page === 'Overview' && <>
             <div className="metrics">
               <Metric icon={<Wallet />} title="Total receivables" value={money(dashboard?.outstanding_minor || 0)} note="Across all issued invoices" tone="blue" />
-              <Metric icon={<ArrowUpRight />} title="Overdue" value={money(dashboard?.overdue_minor || 0)} note={`${dashboard?.overdue_invoice_count || 0} invoices need attention`} tone="rose" />
-              <Metric icon={<Clock3 />} title="Due in 7 days" value={money(dashboard?.due_next_7_days_minor || 0)} note="Upcoming cash flow" tone="amber" />
-              <Metric icon={<Users />} title="Customers owing" value={dashboard?.customer_count || 0} note="With outstanding balance" tone="green" />
+              <Metric icon={<ArrowUpRight />} title="Overdue" value={money(dashboard?.overdue_minor || 0)} note={`${dashboard?.overdue_invoice_count || 0} invoices need attention`} tone="rose" onClick={() => { setStatusFilter('overdue'); setQuery(''); setPage('Invoices') }} />
+              <Metric icon={<Clock3 />} title="Due in 7 days" value={money(dashboard?.due_next_7_days_minor || 0)} note="Upcoming cash flow" tone="amber" onClick={() => { setQuery(''); setStatusFilter(''); setPage('Due in 7 days') }} />
+              <Metric icon={<Users />} title="Customers owing" value={dashboard?.customer_count || 0} note="With outstanding balance" tone="green" onClick={() => { setQuery(''); setStatusFilter(''); setPage('Customers owing') }} />
             </div>
 
             <div className="panel">
@@ -1758,6 +1761,141 @@ export default function App() {
             </div>
           </>}
 
+          {/* ── Due in 7 days ── */}
+          {page === 'Due in 7 days' && (() => {
+            const today = new Date(); today.setHours(0,0,0,0)
+            const in7 = new Date(today); in7.setDate(today.getDate() + 7)
+            const dueRows = invoices.filter(inv => {
+              if (inv.balance_minor <= 0) return false
+              const d = new Date(inv.due_date + 'T00:00:00')
+              return d >= today && d <= in7
+            }).sort((a, b) => new Date(a.due_date + 'T00:00:00').getTime() - new Date(b.due_date + 'T00:00:00').getTime())
+            return (
+              <div className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h2>Due in 7 days</h2>
+                    <p>{dueRows.length} invoice{dueRows.length !== 1 ? 's' : ''} due between today and {in7.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</p>
+                  </div>
+                  <button className="link-btn" onClick={() => setPage('Overview')}>← Back to Overview</button>
+                </div>
+                {dueRows.length === 0
+                  ? <div className="empty">No invoices due in the next 7 days.</div>
+                  : <>
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>CUSTOMER</th>
+                              <th>INVOICE #</th>
+                              <th>INVOICE DATE</th>
+                              <th>DUE DATE</th>
+                              <th>TOTAL</th>
+                              <th>PAID</th>
+                              <th>OUTSTANDING</th>
+                              <th>STATUS</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dueRows.map(inv => (
+                              <tr key={inv.id}
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => { setViewingInvoice(inv); setModal('view-invoice') }}
+                              >
+                                <td className="strong">{inv.customer_name}</td>
+                                <td className="invoice-number-cell">{inv.invoice_number}</td>
+                                <td>{fmtDate(inv.invoice_date)}</td>
+                                <td>{fmtDate(inv.due_date)}</td>
+                                <td className="amount">{money(inv.total_minor)}</td>
+                                <td className="amount">{money(inv.paid_minor)}</td>
+                                <td className="amount">{money(inv.balance_minor)}</td>
+                                <td><StatusBadge s={inv.display_status} /></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                }
+              </div>
+            )
+          })()}
+          {/* ── Customers owing ── */}
+          {page === 'Customers owing' && (() => {
+            // Build per-customer summary from already-loaded invoices
+            const owingRows = customers.map(c => {
+              const custInvoices = invoices.filter(i => i.customer === c.id && i.balance_minor > 0)
+              return { customer: c, invoices: custInvoices, total: custInvoices.reduce((a, i) => a + i.balance_minor, 0) }
+            }).filter(r => r.invoices.length > 0).sort((a, b) => b.total - a.total)
+            return (
+              <div className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h2>Customers owing</h2>
+                    <p>{owingRows.length} customers with outstanding balance</p>
+                  </div>
+                  <button className="link-btn" onClick={() => setPage('Overview')}>← Back to Overview</button>
+                </div>
+                {owingRows.length === 0
+                  ? <div className="empty">No outstanding balances. All invoices are settled.</div>
+                  : owingRows.map(({ customer: c, invoices: cinv, total }) => (
+                      <div key={c.id} className="owing-customer-block">
+                        <div className="owing-customer-head">
+                          <div className="owing-customer-name">
+                            <div className="owing-avatar">{c.name.slice(0,1).toUpperCase()}</div>
+                            <div>
+                              <strong>{c.name}</strong>
+                              {c.email && <span className="owing-meta">{c.email}</span>}
+                            </div>
+                          </div>
+                          <div className="owing-customer-total">
+                            <span className="owing-label">Total outstanding</span>
+                            <strong className="owing-amount">{money(total)}</strong>
+                          </div>
+                        </div>
+                        <div className="table-wrap">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>INVOICE #</th>
+                                <th>INVOICE DATE</th>
+                                <th>DUE DATE</th>
+                                <th>TOTAL</th>
+                                <th>PAID</th>
+                                <th>OUTSTANDING</th>
+                                <th>OVERDUE</th>
+                                <th>STATUS</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {cinv.map(inv => {
+                                const isOverdue = inv.display_status === 'overdue'
+                                const overdueAmt = isOverdue ? inv.balance_minor : 0
+                                return (
+                                  <tr key={inv.id}
+                                    style={{ cursor: 'pointer' }}
+                                    onClick={() => { setViewingInvoice(inv); setModal('view-invoice') }}
+                                  >
+                                    <td className="strong">{inv.invoice_number}</td>
+                                    <td>{fmtDate(inv.invoice_date)}</td>
+                                    <td>{fmtDate(inv.due_date)}</td>
+                                    <td className="amount">{money(inv.total_minor)}</td>
+                                    <td className="amount">{money(inv.paid_minor)}</td>
+                                    <td className="amount">{money(inv.balance_minor)}</td>
+                                    <td className={isOverdue ? 'amount' : ''}>{isOverdue ? money(overdueAmt) : '—'}</td>
+                                    <td><StatusBadge s={inv.display_status} /></td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))
+                }
+              </div>
+            )
+          })()}
           {/* ── Invoices ── */}
           {page === 'Invoices' && (
             <div className="panel">
@@ -1765,6 +1903,7 @@ export default function App() {
                 <div><h2>All invoices</h2><p>{filtered.length} invoices in your workspace</p></div>
                 <div className="toolbar">
                   <div className="search"><Search size={15} /><input placeholder="Search invoices…" value={query} onChange={e => setQuery(e.target.value)} /></div>
+                  <select className="status-filter-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="">All statuses</option><option value="overdue">Overdue</option><option value="issued">Unpaid</option><option value="partially_paid">Partially Paid</option><option value="paid">Paid</option><option value="draft">Draft</option></select>
                   <a href={`/api/v1/exports/invoices/?`} className="secondary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 7, padding: '9px 13px', border: '1px solid #e4e9e6', fontSize: 12, fontWeight: 600, color: '#52615a', background: '#fff' }} onClick={e => { e.preventDefault(); fetch(`/api/v1/exports/invoices/`, { credentials: 'include', headers: { 'X-Organization-ID': org.id } }).then(r => r.blob()).then(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'invoices.csv'; a.click() }) }}>
                     <Download size={15} /> Export
                   </a>
