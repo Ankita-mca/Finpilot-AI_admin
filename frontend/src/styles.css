@@ -1115,3 +1115,15 @@ button.metric.metric-clickable:active {
 .status-filter-select:focus {
   border-color: #3d8f6b;
 }
+
+/* ── Google OAuth Button ──────────────────────────────────────────────────── */
+.auth-divider{display:flex;align-items:center;gap:12px;margin:20px 0;font-size:12px;color:#82918B}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:#DCE5DE}
+.auth-google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:12px;padding:11px;background:#fff;border:1px solid #C9D7CE;border-radius:8px;font-size:14px;font-weight:600;color:#172B2A;cursor:pointer;transition:all 0.15s;position:relative;overflow:hidden}
+.auth-google-btn:hover{background:#F9FBF9;border-color:#27845F;box-shadow:0 0 0 3px rgba(39,132,95,0.10)}
+.auth-google-btn:active{background:#F4F7F5;transform:scale(0.99)}
+.auth-google-btn:disabled{background:#F0F3F1;color:#A0ADA6;cursor:not-allowed;border-color:#DCE5DE}
+.auth-google-btn:disabled:hover{box-shadow:none;transform:none}
+.google-icon{width:20px;height:20px;flex-shrink:0}
+.auth-google-error{background:#fff1f2;border:1px solid#fecdd3;border-radius:10px;padding:11px 13px;margin-bottom:14px;font-size:12px;color:#be123c}
+.auth-google-error strong{display:block;font-weight:600;margin-bottom:2px}

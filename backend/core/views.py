@@ -1,4 +1,4 @@
-from datetime import timedelta
+﻿from datetime import timedelta
 
 from django.contrib.auth import authenticate, get_user_model, login, logout, password_validation
 from django.core.exceptions import ValidationError
@@ -224,7 +224,7 @@ class PaymentViewSet(OrgScopedMixin, viewsets.ModelViewSet):
                 entity_type="payment_allocation",
                 entity_id=str(alloc.id),
                 summary=(
-                    f"Reversed allocation of ₹{alloc.amount_minor / 100:.2f} "
+                    f"Reversed allocation of â‚¹{alloc.amount_minor / 100:.2f} "
                     f"from payment {payment.id} to invoice {alloc.invoice.invoice_number}"
                 ),
             )
@@ -564,6 +564,569 @@ def sign_out(request):
         )
         logout(request)
         return Response({"detail": "Signed out", "request_id": request_id})
-    # Already unauthenticated — idempotent success
+    # Already unauthenticated â€” idempotent success
     logout(request)
     return Response({"detail": "Signed out"})
+
+
+# ---------------------------------------------------------------------------
+# Google OAuth
+# ---------------------------------------------------------------------------
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def google_oauth_start(request):
+    """
+    Step 1: Redirect user to Google's OAuth consent screen.
+    Generates a state token for CSRF protection.
+    """
+    from django.conf import settings
+    import secrets
+    import urllib.parse
+    
+    if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+        return Response(
+            {
+                "error": "Google OAuth is not configured",
+                "error_type": "google_oauth_not_configured",
+                "detail": "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in .env"
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    
+    # Generate and store state for CSRF protection
+    state = secrets.token_urlsafe(32)
+    request.session["google_oauth_state"] = state
+    request.session["google_oauth_initiated_at"] = timezone.now().isoformat()
+    
+    # Build Google OAuth authorization URL
+    params = {
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "access_type": "online",
+        "prompt": "select_account",
+    }
+    
+    auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+    return Response({"auth_url": auth_url})
+
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def google_oauth_callback(request):
+    """
+    Step 2: Handle Google's redirect after user authorization.
+    Exchanges the authorization code for tokens, verifies the ID token,
+    and creates/authenticates the user.
+    """
+    from django.conf import settings
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    import requests
+    
+    # Check for errors from Google
+    error = request.GET.get("error")
+    if error:
+        frontend_url = "http://localhost:5173"
+        error_msg = request.GET.get("error_description", "Google authentication failed")
+        return JsonResponse(
+            {
+                "error": error_msg,
+                "error_type": "google_oauth_error",
+                "redirect_url": f"{frontend_url}?google_error={urllib.parse.quote(error_msg)}"
+            },
+            status=400
+        )
+    
+    # Verify state (CSRF protection)
+    state_from_google = request.GET.get("state", "")
+    state_from_session = request.session.get("google_oauth_state", "")
+    
+    if not state_from_google or state_from_google != state_from_session:
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": "Invalid state parameter",
+                "error_type": "google_oauth_csrf_error",
+                "redirect_url": f"{frontend_url}?google_error=invalid_state"
+            },
+            status=400
+        )
+    
+    # Clean up state from session
+    request.session.pop("google_oauth_state", None)
+    request.session.pop("google_oauth_initiated_at", None)
+    
+    # Get authorization code
+    code = request.GET.get("code")
+    if not code:
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": "No authorization code received",
+                "error_type": "google_oauth_no_code",
+                "redirect_url": f"{frontend_url}?google_error=no_code"
+            },
+            status=400
+        )
+    
+    # Exchange code for tokens
+    token_url = "https://oauth2.googleapis.com/token"
+    token_data = {
+        "code": code,
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
+    
+    try:
+        token_response = requests.post(token_url, data=token_data, timeout=10)
+        token_response.raise_for_status()
+        tokens = token_response.json()
+    except Exception as e:
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": f"Failed to exchange code for tokens: {str(e)}",
+                "error_type": "google_oauth_token_exchange_error",
+                "redirect_url": f"{frontend_url}?google_error=token_exchange_failed"
+            },
+            status=400
+        )
+    
+    # Verify ID token
+    id_token_str = tokens.get("id_token")
+    if not id_token_str:
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": "No ID token in response",
+                "error_type": "google_oauth_no_id_token",
+                "redirect_url": f"{frontend_url}?google_error=no_id_token"
+            },
+            status=400
+        )
+    
+    try:
+        # Verify the ID token with Google's public keys
+        idinfo = id_token.verify_oauth2_token(
+            id_token_str,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID
+        )
+        
+        # Verify issuer
+        if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
+            raise ValueError("Invalid issuer")
+        
+        # Extract user info
+        google_user_id = idinfo["sub"]
+        email = idinfo.get("email", "").lower()
+        email_verified = idinfo.get("email_verified", False)
+        given_name = idinfo.get("given_name", "")
+        family_name = idinfo.get("family_name", "")
+        full_name = idinfo.get("name", f"{given_name} {family_name}".strip())
+        
+        if not email or not email_verified:
+            raise ValueError("Email not verified or missing")
+        
+    except Exception as e:
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": f"ID token verification failed: {str(e)}",
+                "error_type": "google_oauth_verification_error",
+                "redirect_url": f"{frontend_url}?google_error=verification_failed"
+            },
+            status=400
+        )
+    
+    # Import SocialAccount here to avoid circular import
+    from .models import SocialAccount
+    
+    # Check if this Google account is already linked
+    try:
+        social_account = SocialAccount.objects.select_related("user").get(
+            provider=SocialAccount.Provider.GOOGLE,
+            provider_user_id=google_user_id
+        )
+        user = social_account.user
+        
+        # Log in the existing user
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        
+        AuditLog.objects.create(
+            actor=user,
+            action="auth.google_login",
+            entity_type="user",
+            entity_id=str(user.id),
+            summary=f"User {user.email} signed in with Google",
+        )
+        
+        # Redirect to frontend
+        frontend_url = "http://localhost:5173"
+        return JsonResponse({
+            "detail": "Signed in with Google",
+            "redirect_url": frontend_url
+        })
+        
+    except SocialAccount.DoesNotExist:
+        # Check if a user with this email already exists (password-based account)
+        existing_user = User.objects.filter(email__iexact=email).first()
+        
+        if existing_user:
+            # Safety: do not auto-link existing password accounts to Google
+            # The user must log in with password first, then we could offer linking
+            frontend_url = "http://localhost:5173"
+            error_msg = "An account with this email already exists. Please sign in with your password."
+            return JsonResponse(
+                {
+                    "error": error_msg,
+                    "error_type": "google_oauth_email_exists",
+                    "redirect_url": f"{frontend_url}?google_error={urllib.parse.quote(error_msg)}"
+                },
+                status=400
+            )
+        
+        # Create new user and link Google account
+        with transaction.atomic():
+            # Create user
+            user = User.objects.create_user(
+                username=email,
+                email=email,
+                first_name=given_name[:150],
+                last_name=family_name[:150],
+            )
+            # No password set â€” this is a Google-only account
+            
+            # Create default organization
+            org_name = f"{full_name}'s Business" if full_name else f"{email.split('@')[0]}'s Business"
+            org = Organization.objects.create(name=org_name)
+            
+            Membership.objects.create(
+                organization=org,
+                user=user,
+                role=Membership.Role.OWNER
+            )
+            
+            # Seed default GST rates
+            from products.gst import create_default_gst_rates
+            create_default_gst_rates(org)
+            
+            # Link Google account
+            SocialAccount.objects.create(
+                user=user,
+                provider=SocialAccount.Provider.GOOGLE,
+                provider_user_id=google_user_id,
+                email=email,
+                extra_data={
+                    "name": full_name,
+                    "given_name": given_name,
+                    "family_name": family_name,
+                }
+            )
+            
+            AuditLog.objects.create(
+                organization=org,
+                actor=user,
+                action="auth.google_register",
+                entity_type="user",
+                entity_id=str(user.id),
+                summary=f"Registered user {user.email} via Google OAuth with organization {org.name}",
+            )
+            
+            # Log in the new user
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        
+        # Redirect to frontend
+        frontend_url = "http://localhost:5173"
+        return JsonResponse({
+            "detail": "Account created with Google",
+            "redirect_url": frontend_url
+        })
+
+
+# ---------------------------------------------------------------------------
+# Google OAuth
+# ---------------------------------------------------------------------------
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def google_oauth_start(request):
+    """
+    Step 1: Redirect user to Google's OAuth consent screen.
+    Generates a state token for CSRF protection.
+    """
+    from django.conf import settings
+    import secrets
+    import urllib.parse
+    
+    if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+        return Response(
+            {
+                "error": "Google OAuth is not configured",
+                "error_type": "google_oauth_not_configured",
+                "detail": "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in .env"
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    
+    # Generate and store state for CSRF protection
+    state = secrets.token_urlsafe(32)
+    request.session["google_oauth_state"] = state
+    request.session["google_oauth_initiated_at"] = timezone.now().isoformat()
+    
+    # Build Google OAuth authorization URL
+    params = {
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "access_type": "online",
+        "prompt": "select_account",
+    }
+    
+    auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+    return Response({"auth_url": auth_url})
+
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def google_oauth_callback(request):
+    """
+    Step 2: Handle Google redirect after user authorization.
+    Exchanges the authorization code for tokens, verifies the ID token,
+    and creates/authenticates the user.
+    """
+    from django.conf import settings
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    import requests
+    import urllib.parse
+    
+    # Check for errors from Google
+    error = request.GET.get("error")
+    if error:
+        frontend_url = "http://localhost:5173"
+        error_msg = request.GET.get("error_description", "Google authentication failed")
+        return JsonResponse(
+            {
+                "error": error_msg,
+                "error_type": "google_oauth_error",
+                "redirect_url": f"{frontend_url}?google_error={urllib.parse.quote(error_msg)}"
+            },
+            status=400
+        )
+    
+    # Verify state (CSRF protection)
+    state_from_google = request.GET.get("state", "")
+    state_from_session = request.session.get("google_oauth_state", "")
+    
+    if not state_from_google or state_from_google != state_from_session:
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": "Invalid state parameter",
+                "error_type": "google_oauth_csrf_error",
+                "redirect_url": f"{frontend_url}?google_error=invalid_state"
+            },
+            status=400
+        )
+    
+    # Clean up state from session
+    request.session.pop("google_oauth_state", None)
+    request.session.pop("google_oauth_initiated_at", None)
+    
+    # Get authorization code
+    code = request.GET.get("code")
+    if not code:
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": "No authorization code received",
+                "error_type": "google_oauth_no_code",
+                "redirect_url": f"{frontend_url}?google_error=no_code"
+            },
+            status=400
+        )
+    
+    # Exchange code for tokens
+    token_url = "https://oauth2.googleapis.com/token"
+    token_data = {
+        "code": code,
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
+    
+    try:
+        token_response = requests.post(token_url, data=token_data, timeout=10)
+        token_response.raise_for_status()
+        tokens = token_response.json()
+    except Exception as e:
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": f"Failed to exchange code for tokens: {str(e)}",
+                "error_type": "google_oauth_token_exchange_error",
+                "redirect_url": f"{frontend_url}?google_error=token_exchange_failed"
+            },
+            status=400
+        )
+    
+    # Verify ID token
+    id_token_str = tokens.get("id_token")
+    if not id_token_str:
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": "No ID token in response",
+                "error_type": "google_oauth_no_id_token",
+                "redirect_url": f"{frontend_url}?google_error=no_id_token"
+            },
+            status=400
+        )
+    
+    try:
+        # Verify the ID token with Google public keys
+        idinfo = id_token.verify_oauth2_token(
+            id_token_str,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID
+        )
+        
+        # Verify issuer
+        if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
+            raise ValueError("Invalid issuer")
+        
+        # Extract user info
+        google_user_id = idinfo["sub"]
+        email = idinfo.get("email", "").lower()
+        email_verified = idinfo.get("email_verified", False)
+        given_name = idinfo.get("given_name", "")
+        family_name = idinfo.get("family_name", "")
+        full_name = idinfo.get("name", f"{given_name} {family_name}".strip())
+        
+        if not email or not email_verified:
+            raise ValueError("Email not verified or missing")
+        
+    except Exception as e:
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": f"ID token verification failed: {str(e)}",
+                "error_type": "google_oauth_verification_error",
+                "redirect_url": f"{frontend_url}?google_error=verification_failed"
+            },
+            status=400
+        )
+    
+    # Import SocialAccount here to avoid circular import
+    from .models import SocialAccount
+    
+    # Check if this Google account is already linked
+    try:
+        social_account = SocialAccount.objects.select_related("user").get(
+            provider=SocialAccount.Provider.GOOGLE,
+            provider_user_id=google_user_id
+        )
+        user = social_account.user
+        
+        # Log in the existing user
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        
+        AuditLog.objects.create(
+            actor=user,
+            action="auth.google_login",
+            entity_type="user",
+            entity_id=str(user.id),
+            summary=f"User {user.email} signed in with Google",
+        )
+        
+        # Redirect to frontend
+        frontend_url = "http://localhost:5173"
+        return JsonResponse({
+            "detail": "Signed in with Google",
+            "redirect_url": frontend_url
+        })
+        
+    except SocialAccount.DoesNotExist:
+        # Check if a user with this email already exists (password-based account)
+        existing_user = User.objects.filter(email__iexact=email).first()
+        
+        if existing_user:
+            # Safety: do not auto-link existing password accounts to Google
+            # The user must log in with password first, then we could offer linking
+            frontend_url = "http://localhost:5173"
+            error_msg = "An account with this email already exists. Please sign in with your password."
+            return JsonResponse(
+                {
+                    "error": error_msg,
+                    "error_type": "google_oauth_email_exists",
+                    "redirect_url": f"{frontend_url}?google_error={urllib.parse.quote(error_msg)}"
+                },
+                status=400
+            )
+        
+        # Create new user and link Google account
+        with transaction.atomic():
+            # Create user
+            user = User.objects.create_user(
+                username=email,
+                email=email,
+                first_name=given_name[:150],
+                last_name=family_name[:150],
+            )
+            # No password set — this is a Google-only account
+            
+            # Create default organization
+            org_name = f"{full_name}'s Business" if full_name else f"{email.split('@')[0]}'s Business"
+            org = Organization.objects.create(name=org_name)
+            
+            Membership.objects.create(
+                organization=org,
+                user=user,
+                role=Membership.Role.OWNER
+            )
+            
+            # Seed default GST rates
+            from products.gst import create_default_gst_rates
+            create_default_gst_rates(org)
+            
+            # Link Google account
+            SocialAccount.objects.create(
+                user=user,
+                provider=SocialAccount.Provider.GOOGLE,
+                provider_user_id=google_user_id,
+                email=email,
+                extra_data={
+                    "name": full_name,
+                    "given_name": given_name,
+                    "family_name": family_name,
+                }
+            )
+            
+            AuditLog.objects.create(
+                organization=org,
+                actor=user,
+                action="auth.google_register",
+                entity_type="user",
+                entity_id=str(user.id),
+                summary=f"Registered user {user.email} via Google OAuth with organization {org.name}",
+            )
+            
+            # Log in the new user
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        
+        # Redirect to frontend
+        frontend_url = "http://localhost:5173"
+        return JsonResponse({
+            "detail": "Account created with Google",
+            "redirect_url": frontend_url
+        })

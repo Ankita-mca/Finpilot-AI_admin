@@ -1,5 +1,5 @@
-/**
- * API client — handles CSRF, org header, and error normalization.
+﻿/**
+ * API client â€” handles CSRF, org header, and error normalization.
  * All financial amounts from the API are integer Minor_Units (paise).
  */
 
@@ -59,7 +59,7 @@ export type Payment = {
   allocations: { id: string; invoice: string; invoice_number: string; amount_minor: number }[]
   unallocated_minor: number; created_at: string
 }
-// AUDIT LOG DISABLED — uncomment to re-enable
+// AUDIT LOG DISABLED â€” uncomment to re-enable
 // export type AuditLog = {
 //   id: number; action: string; entity_type: string; entity_id: string
 //   summary: string; actor_name: string; created_at: string
@@ -84,7 +84,7 @@ export type AgingData = {
     due_date: string; days_overdue: number; balance_minor: number
   }[]>
 }
-// FORECAST DISABLED — uncomment to re-enable
+// FORECAST DISABLED â€” uncomment to re-enable
 // export type ForecastData = {
 //   as_of: string; period_days: number; currency: string
 //   insufficient_history: boolean
@@ -92,7 +92,7 @@ export type AgingData = {
 //   scenarios: Record<string, { total_minor: number; lines: unknown[] }>
 // }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const money = (minor: number, currency = 'INR') =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(minor / 100)
@@ -117,7 +117,7 @@ function headers(orgId?: string): Record<string, string> {
   return h
 }
 
-// ── 401 global handler ──────────────────────────────────────────────────────
+// â”€â”€ 401 global handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // App.tsx registers a callback here so that any 401 anywhere auto-clears auth.
 type OnUnauthenticated = () => void
 let _onUnauthenticated: OnUnauthenticated | null = null
@@ -125,7 +125,7 @@ export function setUnauthenticatedHandler(fn: OnUnauthenticated) {
   _onUnauthenticated = fn
 }
 
-// ── Cross-tab logout via BroadcastChannel ───────────────────────────────────
+// â”€â”€ Cross-tab logout via BroadcastChannel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Emits 'logout' so other open tabs can clear their state.
 const LOGOUT_CHANNEL = 'finpilot_auth'
 export function broadcastLogout() {
@@ -134,7 +134,7 @@ export function broadcastLogout() {
     ch.postMessage({ type: 'logout' })
     ch.close()
   } catch {
-    // BroadcastChannel not available (e.g. Firefox private mode) — fall back to localStorage
+    // BroadcastChannel not available (e.g. Firefox private mode) â€” fall back to localStorage
     try { localStorage.setItem('finpilot_logout', String(Date.now())) } catch { /* ignore */ }
   }
 }
@@ -156,7 +156,7 @@ export function subscribeLogoutChannel(handler: () => void): () => void {
   }
 }
 
-// Structured API error — preserves error_type and request_id from backend
+// Structured API error â€” preserves error_type and request_id from backend
 export class ApiError extends Error {
   error_type: string
   request_id?: string
@@ -173,10 +173,10 @@ export class ApiError extends Error {
 async function request<T>(  // <T> = empty box = placeholder for the response type (we don't know yet)
                             // Sending data to Django takes time, so we must wait for its response.
   method: string, path: string, body?: unknown, orgId?: string
-): Promise<T> {                    //This means the function will return a Promise containing the response data of type T.👇
+): Promise<T> {                    //This means the function will return a Promise containing the response data of type T.ðŸ‘‡
   const res = await fetch(path, {   //In simple words: this function sends a request and eventually gives us the backend response.
     method,
-    credentials: 'include',  //include — relevant cookies are included.
+    credentials: 'include',  //include â€” relevant cookies are included.
     headers: headers(orgId),
     body: body !== undefined ? JSON.stringify(body) : undefined,   //Because JavaScript objects need to be converted into JSON text before being sent in a normal HTTP request body.
   })
@@ -211,7 +211,7 @@ async function request<T>(  // <T> = empty box = placeholder for the response ty
   return text ? JSON.parse(text) : ({} as T)
 }
 
-// ── Auth ───────────────────────────────────────────────────────────────────
+// â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const api = {
   csrf: () => ensureCsrf(),
@@ -221,6 +221,9 @@ export const api = {
     request<{ detail: string }>('POST', '/api/v1/auth/register/', { full_name, email, password, organization_name }),
   logout: (orgId?: string) => request<void>('POST', '/api/v1/auth/logout/', undefined, orgId),
   me: () => request<User>('GET', '/api/v1/auth/me/'),
+  
+  // Google OAuth
+  googleAuthUrl: () => request<{ auth_url: string }>('GET', '/api/v1/auth/google/'),
 
   // Org
   createOrg: (data: {
@@ -305,7 +308,7 @@ export const api = {
   activateProduct: (orgId: string, id: string) =>
     request<Product>('POST', `/api/v1/products/${id}/activate/`, {}, orgId),
 
-  // FORECAST DISABLED — uncomment to re-enable
+  // FORECAST DISABLED â€” uncomment to re-enable
   // forecast: (orgId: string, period: 7 | 30 | 60, timing = 'due_date') =>
   //   request<ForecastData>('GET', `/api/v1/forecasts/?period=${period}&timing=${timing}`, undefined, orgId),
 
@@ -316,7 +319,7 @@ export const api = {
       'POST', '/api/v1/assistant/', { question, session_id }, orgId
     ),
 
-  // AUDIT LOG DISABLED — uncomment to re-enable
+  // AUDIT LOG DISABLED â€” uncomment to re-enable
   // auditLogs: (orgId: string) =>
   //   request<AuditLog[]>('GET', '/api/v1/audit-logs/', undefined, orgId),
 

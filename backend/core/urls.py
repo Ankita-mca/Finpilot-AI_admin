@@ -1,9 +1,10 @@
-from django.urls import include, path
+﻿from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
     OrganizationViewSet, CustomerViewSet, InvoiceViewSet, PaymentViewSet,
     dashboard, aging, audit_logs, members_list, me, csrf, sign_in, sign_out, register,
+    google_oauth_start, google_oauth_callback,
 )
 
 router = DefaultRouter()
@@ -19,6 +20,9 @@ urlpatterns = [
     path("auth/login/", sign_in),
     path("auth/logout/", sign_out),
     path("auth/me/", me),
+    # Google OAuth
+    path("auth/google/", google_oauth_start),
+    path("auth/google/callback/", google_oauth_callback),
     # Dashboard and reports
     path("dashboard/", dashboard),
     path("reports/aging/", aging),

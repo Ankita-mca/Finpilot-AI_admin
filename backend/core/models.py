@@ -417,3 +417,41 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.action} on {self.entity_type} {self.entity_id}"
+
+
+# ---------------------------------------------------------------------------
+# SocialAccount (Google OAuth)
+# ---------------------------------------------------------------------------
+
+class SocialAccount(models.Model):
+    """Links a user to their Google account for OAuth authentication."""
+    
+    class Provider(models.TextChoices):
+        GOOGLE = "google", "Google"
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="social_accounts"
+    )
+    provider = models.CharField(max_length=20, choices=Provider.choices)
+    provider_user_id = models.CharField(max_length=255)
+    email = models.EmailField()
+    extra_data = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "provider_user_id"],
+                name="unique_provider_account"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["provider", "email"]),
+        ]
+    
+    def __str__(self):
+        return f"{self.provider} account for {self.user.email}"
