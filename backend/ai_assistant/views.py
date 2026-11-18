@@ -546,7 +546,7 @@ def _rule_based_answer(question: str, org, tool_results: dict) -> str:
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated, HasOrganizationAccess])
 def ask_assistant(request):
-    """
+    """ 
     POST /api/v1/assistant/
     Body: {"question": "How much is overdue?"}
     

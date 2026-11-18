@@ -1,4 +1,4 @@
-﻿// FinPilot AI - Invoice Module Improved
+// FinPilot AI - Invoice Module Improved
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { MarkdownAnswer } from './components/MarkdownAnswer'
 import {
@@ -16,20 +16,20 @@ import {
   type Product, type GSTRate, type OrganizationDetail,
 } from './lib/api'
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// -- Types ------------------------------------------------------------------
 
 type Page = 'Overview' | 'Invoices' | 'Customers' | 'Payments' | 'Aging report' |
   'Reminders' | /*'Reconciliation' |*/ /*'Forecast' |*/ 'AI Assistant' |
   /*'Audit Log' |*/ 'Settings' | 'Notifications' | 'Products' | 'Customers owing' | 'Due in 7 days'
 
-// ── GST preview helper (display-only; the server recalculates on save) ──────
+// -- GST preview helper (display-only; the server recalculates on save) ------
 // Mirrors the backend: round-half-up to the nearest paise.
 function gstAmount(taxableMinor: number, rateBps: number): number {
   if (!rateBps || rateBps <= 0 || taxableMinor <= 0) return 0
   return Math.round((taxableMinor * rateBps) / 10000)
 }
 
-// ── Marble chute SVG artwork (right panel decoration) ─────────────────────
+// -- Marble chute SVG artwork (right panel decoration) ---------------------
 
 function MarbleArtwork() {
   return (
@@ -65,7 +65,7 @@ function MarbleArtwork() {
         </filter>
       </defs>
 
-      {/* ── Track: outer wall (left side curved channel) ── */}
+      {/* -- Track: outer wall (left side curved channel) -- */}
       <g filter="url(#dropShadow)">
         {/* Back wall of the channel */}
         <path d="M 180 80 C 180 80 160 200 165 340 C 170 440 230 500 290 560 C 350 620 420 650 440 720 C 455 770 450 820 450 820 L 490 820 C 490 820 495 770 480 718 C 460 646 388 614 328 554 C 268 494 210 436 205 336 C 200 198 220 78 220 78 Z"
@@ -78,7 +78,7 @@ function MarbleArtwork() {
           fill="url(#wallFace)" />
       </g>
 
-      {/* ── Marble sphere ── */}
+      {/* -- Marble sphere -- */}
       <g filter="url(#dropShadow)">
         <circle cx="352" cy="410" r="52" fill="url(#marbleShading)" />
         <circle cx="352" cy="410" r="52" fill="url(#marbleHighlight)" />
@@ -89,7 +89,7 @@ function MarbleArtwork() {
   )
 }
 
-// ── Auth screen ────────────────────────────────────────────────────────────
+// -- Auth screen ------------------------------------------------------------
 
 function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login')
@@ -154,7 +154,7 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
       if (org.length < 2) { setError('Business name must be at least 2 characters.'); return }
     }
 
-    // Forgot password — UI only, no backend endpoint
+    // Forgot password � UI only, no backend endpoint
     if (mode === 'forgot') {
       setBusy(true)
       await new Promise(r => setTimeout(r, 800)) // brief simulated delay
@@ -194,7 +194,7 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
 
   return (
     <main className="auth-shell">
-      {/* ── Browser-chrome wrapper card ── */}
+      {/* -- Browser-chrome wrapper card -- */}
       <div className="auth-window">
         {/* Window title bar */}
         <div className="auth-titlebar">
@@ -205,7 +205,7 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
         </div>
 
         <div className="auth-columns">
-          {/* ── LEFT: form column ── */}
+          {/* -- LEFT: form column -- */}
           <div className="auth-left">
             {/* Brand */}
             <div className="auth-brand-row">
@@ -286,7 +286,7 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
                         id="fp-password"
                         name="password"
                         type={showPassword ? 'text' : 'password'}
-                        placeholder={mode === 'login' ? '••••••••' : 'Minimum 8 characters'}
+                        placeholder={mode === 'login' ? '��������' : 'Minimum 8 characters'}
                         required
                         autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                       />
@@ -356,7 +356,7 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
                 <button className="auth-submit-btn" disabled={busy}>
                   {busy
                     ? (mode === 'login' ? 'Authenticating...' : mode === 'register' ? 'Creating Account...' : 'Sending...')
-                    : (mode === 'login' ? 'Login' : mode === 'register' ? 'Create Account & Continue →' : 'Send Reset Instructions')}
+                    : (mode === 'login' ? 'Login' : mode === 'register' ? 'Create Account & Continue ?' : 'Send Reset Instructions')}
                 </button>
               </form>
             )}
@@ -393,7 +393,7 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
             {/* Bottom toggle link */}
             {mode === 'forgot' ? (
               <button type="button" className="auth-bottom-link" onClick={() => switchMode('login')}>
-                ← Back to Login
+                ? Back to Login
               </button>
             ) : (
               <p className="auth-bottom-link">
@@ -404,10 +404,10 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
               </p>
             )}
 
-            <div className="auth-left-foot">© FinPilot AI 2026</div>
+            <div className="auth-left-foot">� FinPilot AI 2026</div>
           </div>
 
-          {/* ── RIGHT: artwork column ── */}
+          {/* -- RIGHT: artwork column -- */}
           <div className="auth-right">
             <MarbleArtwork />
           </div>
@@ -417,14 +417,46 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
   )
 }
 
-// ── Create org screen ──────────────────────────────────────────────────────
+// -- Create org screen ------------------------------------------------------
 
+// Indian GST State Codes - matches backend products/gst.py
 const INDIAN_STATES = [
-  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
-  'Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh',
-  'Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan',
-  'Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal',
-  'Delhi NCR','Chandigarh','Jammu & Kashmir','Ladakh','Puducherry','Other State / UT',
+  { code: '01', name: 'Jammu & Kashmir' },
+  { code: '02', name: 'Himachal Pradesh' },
+  { code: '03', name: 'Punjab' },
+  { code: '04', name: 'Chandigarh' },
+  { code: '05', name: 'Uttarakhand' },
+  { code: '06', name: 'Haryana' },
+  { code: '07', name: 'Delhi' },
+  { code: '08', name: 'Rajasthan' },
+  { code: '09', name: 'Uttar Pradesh' },
+  { code: '10', name: 'Bihar' },
+  { code: '11', name: 'Sikkim' },
+  { code: '12', name: 'Arunachal Pradesh' },
+  { code: '13', name: 'Nagaland' },
+  { code: '14', name: 'Manipur' },
+  { code: '15', name: 'Mizoram' },
+  { code: '16', name: 'Tripura' },
+  { code: '17', name: 'Meghalaya' },
+  { code: '18', name: 'Assam' },
+  { code: '19', name: 'West Bengal' },
+  { code: '20', name: 'Jharkhand' },
+  { code: '21', name: 'Odisha' },
+  { code: '22', name: 'Chhattisgarh' },
+  { code: '23', name: 'Madhya Pradesh' },
+  { code: '24', name: 'Gujarat' },
+  { code: '26', name: 'Dadra & Nagar Haveli and Daman & Diu' },
+  { code: '27', name: 'Maharashtra' },
+  { code: '29', name: 'Karnataka' },
+  { code: '30', name: 'Goa' },
+  { code: '31', name: 'Lakshadweep' },
+  { code: '32', name: 'Kerala' },
+  { code: '33', name: 'Tamil Nadu' },
+  { code: '34', name: 'Puducherry' },
+  { code: '35', name: 'Andaman & Nicobar Islands' },
+  { code: '36', name: 'Telangana' },
+  { code: '37', name: 'Andhra Pradesh' },
+  { code: '38', name: 'Ladakh' },
 ]
 
 function CreateOrgScreen({ user, onCreated, onLogout }: { user: User; onCreated: (org: Org) => void; onLogout: () => void }) {
@@ -465,7 +497,7 @@ function CreateOrgScreen({ user, onCreated, onLogout }: { user: User; onCreated:
   return (
     <main className="org-setup-shell">
       <div className="org-setup-window">
-        {/* ── LEFT aside: brand + feature cards ── */}
+        {/* -- LEFT aside: brand + feature cards -- */}
         <aside className="org-aside">
           {/* Logo */}
           <div className="org-aside-logo">
@@ -533,17 +565,17 @@ function CreateOrgScreen({ user, onCreated, onLogout }: { user: User; onCreated:
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             <span>COMPLIANCE &amp; SECURITY STANDARDS</span>
-            <p>256-bit bank-grade encryption · RBI Fair Practices Framework · ISO 27001 &amp; SOC2 Type II Certified</p>
+            <p>256-bit bank-grade encryption � RBI Fair Practices Framework � ISO 27001 &amp; SOC2 Type II Certified</p>
           </div>
         </aside>
 
-        {/* ── RIGHT section: form ── */}
+        {/* -- RIGHT section: form -- */}
         <section className="org-form-panel">
           {/* 3-step progress bar */}
           <div className="org-progress">
             <div className="org-progress-label">
               <span className="org-step-done">STEP 2 OF 3</span>
-              <span className="org-step-next">Organization Setup · Next: Dashboard</span>
+              <span className="org-step-next">Organization Setup � Next: Dashboard</span>
             </div>
             <div className="org-progress-bars">
               <div className="org-progress-bar org-progress-done" />
@@ -551,7 +583,7 @@ function CreateOrgScreen({ user, onCreated, onLogout }: { user: User; onCreated:
               <div className="org-progress-bar org-progress-upcoming" />
             </div>
             <div className="org-progress-steps">
-              <span className="org-step org-step-done-txt">✓ Sign In (Done)</span>
+              <span className="org-step org-step-done-txt">? Sign In (Done)</span>
               <span className="org-step org-step-active-txt">Org Setup (Active)</span>
               <span className="org-step org-step-upcoming-txt">Step 3: Dashboard</span>
             </div>
@@ -635,7 +667,7 @@ function CreateOrgScreen({ user, onCreated, onLogout }: { user: User; onCreated:
                 <label htmlFor="of-state">State <span className="org-required">*</span></label>
                 <select id="of-state" name="state" required defaultValue="">
                   <option value="" disabled>Select state</option>
-                  {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  {INDIAN_STATES.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
                 </select>
               </div>
               <div className="org-field">
@@ -655,7 +687,7 @@ function CreateOrgScreen({ user, onCreated, onLogout }: { user: User; onCreated:
 
             <div className="org-form-actions">
               <button type="submit" className="org-submit-btn" disabled={busy}>
-                {busy ? 'Creating Workspace...' : 'Create Organization →'}
+                {busy ? 'Creating Workspace...' : 'Create Organization ?'}
               </button>
               <button type="button" className="org-signout-btn" onClick={onLogout}>Sign out</button>
             </div>
@@ -676,7 +708,7 @@ function CreateOrgScreen({ user, onCreated, onLogout }: { user: User; onCreated:
                   className="org-submit-btn"
                   onClick={() => { if (createdOrg) onCreated(createdOrg) }}
                 >
-                  Launch Dashboard →
+                  Launch Dashboard ?
                 </button>
               </div>
             </div>
@@ -687,7 +719,7 @@ function CreateOrgScreen({ user, onCreated, onLogout }: { user: User; onCreated:
   )
 }
 
-// ── Metric card ────────────────────────────────────────────────────────────
+// -- Metric card ------------------------------------------------------------
 
 function Metric({ icon, title, value, note, tone, onClick }: { icon: React.ReactNode; title: string; value: string | number; note: string; tone: string; onClick?: () => void }) {
   const inner = <>
@@ -700,7 +732,7 @@ function Metric({ icon, title, value, note, tone, onClick }: { icon: React.React
   return <article className="metric">{inner}</article>
 }
 
-// ── Status badge ───────────────────────────────────────────────────────────
+// -- Status badge -----------------------------------------------------------
 
 function StatusBadge({ s }: { s: string }) {
   const labels: Record<string, string> = {
@@ -714,7 +746,7 @@ function StatusBadge({ s }: { s: string }) {
   return <span className={`status ${s}`}>{labels[s] ?? s.replace(/_/g, ' ')}</span>
 }
 
-// ── Invoice modal (line items + GST) ────────────────────────────────────────
+// -- Invoice modal (line items + GST) ----------------------------------------
 
 type InvoiceLine = {
   product: string; description: string; quantity: string
@@ -722,7 +754,7 @@ type InvoiceLine = {
   gst_rate_bps: number; gst_rate_name: string; hsn_sac: string
 }
 
-// ── Invoice View Modal (Clean Modern Style - Green Theme) ─────────────────
+// -- Invoice View Modal (Clean Modern Style - Green Theme) -----------------
 function InvoiceViewModal({ invoice, customers, onClose, onEdit }: {
   invoice: Invoice; customers: Customer[]; onClose: () => void; onEdit: () => void
 }) {
@@ -735,7 +767,7 @@ function InvoiceViewModal({ invoice, customers, onClose, onEdit }: {
         {/* Header with Invoice Number */}
         <div className="invoice-modern-header">
           <div className="invoice-modern-header-left">
-            <div className="invoice-modern-brand">FinPilot AI – Customer Invoice</div>
+            <div className="invoice-modern-brand">FinPilot AI � Customer Invoice</div>
             <h1 className="invoice-modern-number">{invoice.invoice_number}</h1>
           </div>
           <div className="invoice-modern-header-right">
@@ -754,7 +786,7 @@ function InvoiceViewModal({ invoice, customers, onClose, onEdit }: {
           <div className="invoice-modern-info-grid">
             <div className="invoice-modern-info-col">
               <div className="invoice-modern-label">CUSTOMER</div>
-              <div className="invoice-modern-value-large">{cust?.name || '—'}</div>
+              <div className="invoice-modern-value-large">{cust?.name || '�'}</div>
               {cust?.billing_address && <div className="invoice-modern-address">{cust.billing_address}</div>}
             </div>
             
@@ -1110,7 +1142,7 @@ function InvoiceModal({ customers, products, gstRates, orgDetail, orgId, onClose
           <div className="invoice-form-clean-footer">
             <button type="button" className="secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="primary" disabled={busy}>
-              {busy ? 'Saving…' : isEdit ? 'Save' : 'Create'}
+              {busy ? 'Saving�' : isEdit ? 'Save' : 'Create'}
             </button>
           </div>
         </form>
@@ -1119,7 +1151,7 @@ function InvoiceModal({ customers, products, gstRates, orgDetail, orgId, onClose
   )
 }
 
-// ── Customer modal ─────────────────────────────────────────────────────────
+// -- Customer modal ---------------------------------------------------------
 
 function CustomerModal({ orgId, onClose, onCreated }: { orgId: string; onClose: () => void; onCreated: () => void }) {
   const [busy, setBusy] = useState(false)
@@ -1146,7 +1178,7 @@ function CustomerModal({ orgId, onClose, onCreated }: { orgId: string; onClose: 
           {err && <div className="form-error">{err}</div>}
           <div className="modal-foot">
             <button type="button" className="secondary" onClick={onClose}>Cancel</button>
-            <button className="primary" disabled={busy}><Plus size={15} />{busy ? 'Adding…' : 'Add customer'}</button>
+            <button className="primary" disabled={busy}><Plus size={15} />{busy ? 'Adding�' : 'Add customer'}</button>
           </div>
         </form>
       </section>
@@ -1154,7 +1186,7 @@ function CustomerModal({ orgId, onClose, onCreated }: { orgId: string; onClose: 
   )
 }
 
-// ── Payment modal ──────────────────────────────────────────────────────────
+// -- Payment modal ----------------------------------------------------------
 
 function PaymentModal({ customers, invoices, orgId, onClose, onCreated }: {
   customers: Customer[]; invoices: Invoice[]; orgId: string; onClose: () => void; onCreated: () => void
@@ -1203,14 +1235,14 @@ function PaymentModal({ customers, invoices, orgId, onClose, onCreated }: {
               <select name="invoice">
                 <option value="">No allocation</option>
                 {custInvoices.map(i => (
-                  <option key={i.id} value={i.id}>{i.invoice_number} — {money(i.balance_minor)} outstanding</option>
+                  <option key={i.id} value={i.id}>{i.invoice_number} � {money(i.balance_minor)} outstanding</option>
                 ))}
               </select>
             </label>
           )}
           <div className="form-row">
             <label>Payment date<input name="date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
-            <label>Amount (₹)<input name="amount" type="number" min="0.01" step="0.01" required placeholder="0.00" /></label>
+            <label>Amount (?)<input name="amount" type="number" min="0.01" step="0.01" required placeholder="0.00" /></label>
           </div>
           <div className="form-row">
             <label>Method
@@ -1226,7 +1258,7 @@ function PaymentModal({ customers, invoices, orgId, onClose, onCreated }: {
           {err && <div className="form-error">{err}</div>}
           <div className="modal-foot">
             <button type="button" className="secondary" onClick={onClose}>Cancel</button>
-            <button className="primary" disabled={busy}><Plus size={15} />{busy ? 'Recording…' : 'Record payment'}</button>
+            <button className="primary" disabled={busy}><Plus size={15} />{busy ? 'Recording�' : 'Record payment'}</button>
           </div>
         </form>
       </section>
@@ -1234,7 +1266,7 @@ function PaymentModal({ customers, invoices, orgId, onClose, onCreated }: {
   )
 }
 
-// ── GST rate modal (with live preview) ─────────────────────────────────────
+// -- GST rate modal (with live preview) -------------------------------------
 
 function GstRateModal({ orgId, onClose, onCreated, editing }: {
   orgId: string; onClose: () => void; onCreated: () => void; editing: GSTRate | null
@@ -1284,7 +1316,7 @@ function GstRateModal({ orgId, onClose, onCreated, editing }: {
   )
 }
 
-// ── Product modal ──────────────────────────────────────────────────────────
+// -- Product modal ----------------------------------------------------------
 
 function ProductModal({ orgId, gstRates, onClose, onCreated, editing }: {
   orgId: string; gstRates: GSTRate[]; onClose: () => void; onCreated: () => void; editing: Product | null
@@ -1327,7 +1359,7 @@ function ProductModal({ orgId, gstRates, onClose, onCreated, editing }: {
         <form onSubmit={handle}>
           <label>Product name<input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Accounting software license" required /></label>
           <div className="form-row">
-            <label>Price (₹)<input type="number" min="0.01" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" required /></label>
+            <label>Price (?)<input type="number" min="0.01" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" required /></label>
             <label>Unit<input value={unit} onChange={e => setUnit(e.target.value)} placeholder="Nos" /></label>
           </div>
           <div className="form-row">
@@ -1352,7 +1384,7 @@ function ProductModal({ orgId, gstRates, onClose, onCreated, editing }: {
   )
 }
 
-// ── Products page (tabs: Products / GST Rates) ──────────────────────────────
+// -- Products page (tabs: Products / GST Rates) ------------------------------
 
 function ProductsPage({ orgId, products, gstRates, onReload, onOpenProductModal, onOpenRateModal }: {
   orgId: string; products: Product[]; gstRates: GSTRate[]; onReload: () => void
@@ -1401,16 +1433,16 @@ function ProductsPage({ orgId, products, gstRates, onReload, onOpenProductModal,
       {tab === 'products' && (
         <div className="table-wrap">
           <div style={{ padding: '12px 20px' }}>
-            <div className="search"><Search size={15} /><input placeholder="Search products…" value={query} onChange={e => setQuery(e.target.value)} /></div>
+            <div className="search"><Search size={15} /><input placeholder="Search products�" value={query} onChange={e => setQuery(e.target.value)} /></div>
           </div>
           <table>
             <thead><tr><th>PRODUCT</th><th>SKU</th><th>HSN/SAC</th><th>PRICE</th><th>DEFAULT GST</th><th>STATUS</th><th></th></tr></thead>
             <tbody>
               {filteredProducts.map(p => (
                 <tr key={p.id}>
-                  <td className="strong">{p.name}<div style={{ fontWeight: 400, color: '#9ba29d', fontSize: 10 }}>{p.unit} · {p.description?.slice(0, 40)}</div></td>
-                  <td>{p.sku || '—'}</td>
-                  <td>{p.hsn_sac || '—'}</td>
+                  <td className="strong">{p.name}<div style={{ fontWeight: 400, color: '#9ba29d', fontSize: 10 }}>{p.unit} � {p.description?.slice(0, 40)}</div></td>
+                  <td>{p.sku || '�'}</td>
+                  <td>{p.hsn_sac || '�'}</td>
                   <td className="amount">{money(p.price_minor)}</td>
                   <td>{p.default_gst_rate_bps ? `${p.default_gst_rate_name} (${p.default_gst_rate_bps / 100}%)` : 'No GST'}</td>
                   <td>{p.active ? <span className="status paid">Active</span> : <span className="status draft">Inactive</span>}</td>
@@ -1436,7 +1468,7 @@ function ProductsPage({ orgId, products, gstRates, onReload, onOpenProductModal,
                   <td className="strong">{r.name}</td>
                   <td className="amount">{r.rate_percent}</td>
                   <td style={{ fontSize: 10 }}>{r.preview}</td>
-                  <td>{r.in_use ? <span className="status issued">Yes</span> : '—'}</td>
+                  <td>{r.in_use ? <span className="status issued">Yes</span> : '�'}</td>
                   <td>{r.active ? <span className="status paid">Active</span> : <span className="status draft">Inactive</span>}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button className="icon-btn" title="Edit" onClick={() => onOpenRateModal(r)}><Pencil size={14} /></button>
@@ -1448,7 +1480,7 @@ function ProductsPage({ orgId, products, gstRates, onReload, onOpenProductModal,
           </table>
           {gstRates.length === 0 && <div className="empty">No GST rates yet. Add your first rate.</div>}
           {gstRates.some(r => r.in_use && !r.active) && (
-            <div className="notice" style={{ margin: 12 }}>Some rates are deactivated but still referenced by past invoices — they are preserved as snapshots.</div>
+            <div className="notice" style={{ margin: 12 }}>Some rates are deactivated but still referenced by past invoices � they are preserved as snapshots.</div>
           )}
         </div>
       )}
@@ -1456,9 +1488,10 @@ function ProductsPage({ orgId, products, gstRates, onReload, onOpenProductModal,
   )
 }
 
-// ── Main App ───────────────────────────────────────────────────────────────
+// -- Main App ---------------------------------------------------------------
 
 export default function App() {
+  console.log('?? [TEST] FinPilot App is running! If you see this, console is working.');
   const [user, setUser] = useState<User | null>(null)
   const [org, setOrg] = useState<Org | null>(null)
   const [page, setPage] = useState<Page>('Overview')
@@ -1487,7 +1520,7 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([])
   const [gstRates, setGstRates] = useState<GSTRate[]>([])
   const [orgDetail, setOrgDetail] = useState<OrganizationDetail | null>(null)
-  // FORECAST DISABLED — uncomment to re-enable
+  // FORECAST DISABLED � uncomment to re-enable
   // const [forecast, setForecast] = useState<ForecastData | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -1537,16 +1570,35 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    // Handle Google OAuth redirect - force re-authentication
+    const params = new URLSearchParams(window.location.search)
+    const isGoogleReturn = params.has('code') && params.has('state')
+    if (isGoogleReturn) {
+      console.log('[Auth] Detected Google OAuth return, cleaning URL...')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    if (params.get('google_login') === 'success') {
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+
     api.csrf().then(() =>
       api.me().then(u => {
+        console.log('[Auth] User data received:', u)
+        console.log('[Auth] Organizations:', u.organizations)
+        console.log('[Auth] Org count:', u.organizations?.length || 0)
         setUser(u)
         if (u.organizations?.length) {
           const o = u.organizations[0]
+          console.log('[Auth] Setting org:', o)
           setOrg(o)
           loadData(o)
           loadNotifications(o)
+        } else {
+          console.log('[Auth] No organizations found, user will see CreateOrgScreen')
         }
-      }).catch(() => { })
+      }).catch((err) => {
+        console.log('[Auth] api.me() failed:', err)
+      })
     ).finally(() => setLoading(false))
   }, [loadData, loadNotifications])
 
@@ -1562,7 +1614,7 @@ export default function App() {
     setCustomers([])
     setPayments([])
     setAging(null)
-    // FORECAST DISABLED — uncomment to re-enable
+    // FORECAST DISABLED � uncomment to re-enable
     // setForecast(null)
     setNotifications([])
     setUnreadCount(0)
@@ -1575,7 +1627,7 @@ export default function App() {
     try {
       await api.logout(org?.id)
     } catch {
-      // Proceed even if backend call fails — clear client state regardless
+      // Proceed even if backend call fails � clear client state regardless
     }
     broadcastLogout()
     clearAuth()
@@ -1594,7 +1646,7 @@ export default function App() {
   useEffect(() => {
     const unsub = subscribeLogoutChannel(() => {
       clearAuth()
-      // No toast here — only the initiating tab shows "Logged out successfully"
+      // No toast here � only the initiating tab shows "Logged out successfully"
     })
     return unsub
   }, [clearAuth])
@@ -1651,9 +1703,9 @@ export default function App() {
     { name: 'Payments', icon: Wallet },
     { name: 'Aging report', icon: Clock3 },
     { name: 'Reminders', icon: Bell, soon: true },
-    // RECONCILIATION DISABLED — uncomment to re-enable
+    // RECONCILIATION DISABLED � uncomment to re-enable
     // { name: 'Reconciliation', icon: GitMerge, soon: true },
-    // FORECAST DISABLED — uncomment to re-enable
+    // FORECAST DISABLED � uncomment to re-enable
     // { name: 'Forecast', icon: TrendingUp },
     { name: 'AI Assistant', icon: Bot },
   ]
@@ -1705,7 +1757,7 @@ export default function App() {
             <Bell size={17} />Notifications
             {unreadCount > 0 && <span className="soon">{unreadCount}</span>}
           </button>
-          {/* AUDIT LOG DISABLED — uncomment to re-enable */}
+          {/* AUDIT LOG DISABLED � uncomment to re-enable */}
           {/* <button className="nav-item" onClick={() => setPage('Audit Log')}><ShieldCheck size={17} />Audit Log</button> */}
           <button className="nav-item" onClick={() => setPage('Settings')}><Settings2 size={17} />Settings</button>
           <div className="profile">
@@ -1719,7 +1771,7 @@ export default function App() {
             disabled={loggingOut}
             aria-label="Sign out"
           >
-            <LogOut size={15} /><span>{loggingOut ? 'Signing out…' : 'Sign out'}</span>
+            <LogOut size={15} /><span>{loggingOut ? 'Signing out�' : 'Sign out'}</span>
           </button>
         </div>
       </aside>
@@ -1734,7 +1786,7 @@ export default function App() {
               <Bell size={18} />{unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
             </button>
             <button className="icon-btn" title="Help"><CircleHelp size={18} /></button>
-            {/* Mobile logout — hidden on desktop via CSS class */}
+            {/* Mobile logout � hidden on desktop via CSS class */}
             <button
               className="icon-btn logout-btn-mobile"
               title="Sign out"
@@ -1765,7 +1817,7 @@ export default function App() {
 
           {notice && <div className="notice" onClick={() => setNotice('')}>{notice}<X size={15} /></div>}
 
-          {/* ── Overview ── */}
+          {/* -- Overview -- */}
           {page === 'Overview' && <>
             <div className="metrics">
               <Metric icon={<Wallet />} title="Total receivables" value={money(dashboard?.outstanding_minor || 0)} note="Across all issued invoices" tone="blue" />
@@ -1778,7 +1830,7 @@ export default function App() {
               <div className="panel-head">
                 <div><h2>Outstanding invoices</h2><p>Keep an eye on what's coming in</p></div>
                 <div className="toolbar">
-                  <button className="link-btn" onClick={() => setPage('Invoices')}>View all <span>→</span></button>
+                  <button className="link-btn" onClick={() => setPage('Invoices')}>View all <span>?</span></button>
                 </div>
               </div>
               {invoiceTable}
@@ -1788,14 +1840,14 @@ export default function App() {
               <div className="panel aging-panel">
                 <div className="panel-head">
                   <div><h2>Receivables aging</h2><p>Outstanding by days past due</p></div>
-                  <button className="link-btn" onClick={() => setPage('Aging report')}>Full report →</button>
+                  <button className="link-btn" onClick={() => setPage('Aging report')}>Full report ?</button>
                 </div>
                 <div className="aging-list">
                   {[
                     ['Not yet due', 'not_yet_due', 'blue'],
-                    ['1–30 days', 'days_1_30', 'green'],
-                    ['31–60 days', 'days_31_60', 'amber'],
-                    ['61–90 days', 'days_61_90', 'orange'],
+                    ['1�30 days', 'days_1_30', 'green'],
+                    ['31�60 days', 'days_31_60', 'amber'],
+                    ['61�90 days', 'days_61_90', 'orange'],
                     ['Over 90 days', 'over_90', 'rose'],
                   ].map(([title, key, tone]) => (
                     <div className="aging-row" key={key}>
@@ -1813,12 +1865,12 @@ export default function App() {
                 <div className="eyebrow">AI FINANCE ASSISTANT</div>
                 <h3>Ask about your<br />financial Transactions.</h3>
                 <p>Get instant answers about outstanding balances, overdue customers, and cash flow forecasts.</p>
-                <button onClick={() => setPage('AI Assistant')}>Open AI assistant <span>→</span></button>
+                <button onClick={() => setPage('AI Assistant')}>Open AI assistant <span>?</span></button>
               </div>
             </div>
           </>}
 
-          {/* ── Due in 7 days ── */}
+          {/* -- Due in 7 days -- */}
           {page === 'Due in 7 days' && (() => {
             const today = new Date(); today.setHours(0,0,0,0)
             const in7 = new Date(today); in7.setDate(today.getDate() + 7)
@@ -1834,7 +1886,7 @@ export default function App() {
                     <h2>Due in 7 days</h2>
                     <p>{dueRows.length} invoice{dueRows.length !== 1 ? 's' : ''} due between today and {in7.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</p>
                   </div>
-                  <button className="link-btn" onClick={() => setPage('Overview')}>← Back to Overview</button>
+                  <button className="link-btn" onClick={() => setPage('Overview')}>? Back to Overview</button>
                 </div>
                 {dueRows.length === 0
                   ? <div className="empty">No invoices due in the next 7 days.</div>
@@ -1877,7 +1929,7 @@ export default function App() {
               </div>
             )
           })()}
-          {/* ── Customers owing ── */}
+          {/* -- Customers owing -- */}
           {page === 'Customers owing' && (() => {
             // Build per-customer summary from already-loaded invoices
             const owingRows = customers.map(c => {
@@ -1891,7 +1943,7 @@ export default function App() {
                     <h2>Customers owing</h2>
                     <p>{owingRows.length} customers with outstanding balance</p>
                   </div>
-                  <button className="link-btn" onClick={() => setPage('Overview')}>← Back to Overview</button>
+                  <button className="link-btn" onClick={() => setPage('Overview')}>? Back to Overview</button>
                 </div>
                 {owingRows.length === 0
                   ? <div className="empty">No outstanding balances. All invoices are settled.</div>
@@ -1939,7 +1991,7 @@ export default function App() {
                                     <td className="amount">{money(inv.total_minor)}</td>
                                     <td className="amount">{money(inv.paid_minor)}</td>
                                     <td className="amount">{money(inv.balance_minor)}</td>
-                                    <td className={isOverdue ? 'amount' : ''}>{isOverdue ? money(overdueAmt) : '—'}</td>
+                                    <td className={isOverdue ? 'amount' : ''}>{isOverdue ? money(overdueAmt) : '�'}</td>
                                     <td><StatusBadge s={inv.display_status} /></td>
                                   </tr>
                                 )
@@ -1953,13 +2005,13 @@ export default function App() {
               </div>
             )
           })()}
-          {/* ── Invoices ── */}
+          {/* -- Invoices -- */}
           {page === 'Invoices' && (
             <div className="panel">
               <div className="panel-head">
                 <div><h2>All invoices</h2><p>{filtered.length} invoices in your workspace</p></div>
                 <div className="toolbar">
-                  <div className="search"><Search size={15} /><input placeholder="Search invoices…" value={query} onChange={e => setQuery(e.target.value)} /></div>
+                  <div className="search"><Search size={15} /><input placeholder="Search invoices�" value={query} onChange={e => setQuery(e.target.value)} /></div>
                   <select className="status-filter-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="">All statuses</option><option value="overdue">Overdue</option><option value="issued">Unpaid</option><option value="partially_paid">Partially Paid</option><option value="paid">Paid</option><option value="draft">Draft</option></select>
                   <a href={`/api/v1/exports/invoices/?`} className="secondary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 7, padding: '9px 13px', border: '1px solid #e4e9e6', fontSize: 12, fontWeight: 600, color: '#52615a', background: '#fff' }} onClick={e => { e.preventDefault(); fetch(`/api/v1/exports/invoices/`, { credentials: 'include', headers: { 'X-Organization-ID': org.id } }).then(r => r.blob()).then(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'invoices.csv'; a.click() }) }}>
                     <Download size={15} /> Export
@@ -1971,13 +2023,13 @@ export default function App() {
             </div>
           )}
 
-          {/* ── Customers ── */}
+          {/* -- Customers -- */}
           {page === 'Customers' && (
             <div className="panel">
               <div className="panel-head">
                 <div><h2>Customers</h2><p>{customers.length} customers</p></div>
                 <div className="toolbar">
-                  <div className="search"><Search size={15} /><input placeholder="Search…" value={query} onChange={e => setQuery(e.target.value)} /></div>
+                  <div className="search"><Search size={15} /><input placeholder="Search�" value={query} onChange={e => setQuery(e.target.value)} /></div>
                   <button className="primary" onClick={() => setModal('customer')}><Plus size={16} /> Add customer</button>
                 </div>
               </div>
@@ -1990,8 +2042,8 @@ export default function App() {
                       return (
                         <tr key={c.id}>
                           <td className="strong">{c.name}</td>
-                          <td>{c.email || '—'}</td>
-                          <td>{c.phone || '—'}</td>
+                          <td>{c.email || '�'}</td>
+                          <td>{c.phone || '�'}</td>
                           <td>{open.length}</td>
                           <td className="amount">{money(open.reduce((a, x) => a + x.balance_minor, 0))}</td>
                           <td>{c.opt_out ? <span className="status overdue">Opted out</span> : <span className="status paid">Active</span>}</td>
@@ -2005,7 +2057,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ── Payments ── */}
+          {/* -- Payments -- */}
           {page === 'Payments' && (
             <div className="panel">
               <div className="panel-head">
@@ -2019,12 +2071,12 @@ export default function App() {
                     {payments.map(p => (
                       <tr key={p.id}>
                         <td>{fmtDate(p.payment_date)}</td>
-                        <td className="strong">{customers.find(c => c.id === p.customer)?.name || '—'}</td>
+                        <td className="strong">{customers.find(c => c.id === p.customer)?.name || '�'}</td>
                         <td className="amount">{money(p.amount_minor)}</td>
                         <td>{p.method.replace(/_/g, ' ')}</td>
-                        <td>{p.reference || '—'}</td>
-                        <td>{p.allocations.map(a => a.invoice_number).join(', ') || '—'}</td>
-                        <td className={p.unallocated_minor > 0 ? 'amount' : ''}>{p.unallocated_minor > 0 ? money(p.unallocated_minor) : '—'}</td>
+                        <td>{p.reference || '�'}</td>
+                        <td>{p.allocations.map(a => a.invoice_number).join(', ') || '�'}</td>
+                        <td className={p.unallocated_minor > 0 ? 'amount' : ''}>{p.unallocated_minor > 0 ? money(p.unallocated_minor) : '�'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2034,22 +2086,22 @@ export default function App() {
             </div>
           )}
 
-          {/* ── Aging report ── */}
+          {/* -- Aging report -- */}
           {page === 'Aging report' && (
             <div className="panel">
               <div className="panel-head">
-                <div><h2>Invoice aging report</h2><p>As of {aging?.as_of || 'today'} · Total outstanding: {money(aging?.grand_total_minor || 0)}</p></div>
+                <div><h2>Invoice aging report</h2><p>As of {aging?.as_of || 'today'} � Total outstanding: {money(aging?.grand_total_minor || 0)}</p></div>
                 <button className="secondary" onClick={() => org && api.aging(org.id).then(setAging)}><RefreshCw size={15} /> Refresh</button>
               </div>
               {(['not_yet_due', 'days_1_30', 'days_31_60', 'days_61_90', 'over_90'] as const).map(key => {
                 const rows = aging?.buckets?.[key] || []
                 const labels: Record<string, string> = {
-                  not_yet_due: 'Not yet due', days_1_30: '1–30 days overdue',
-                  days_31_60: '31–60 days overdue', days_61_90: '61–90 days overdue', over_90: 'Over 90 days overdue',
+                  not_yet_due: 'Not yet due', days_1_30: '1�30 days overdue',
+                  days_31_60: '31�60 days overdue', days_61_90: '61�90 days overdue', over_90: 'Over 90 days overdue',
                 }
                 return (
                   <div className="aging-section" key={key}>
-                    <h3>{labels[key]} — {money(rows.reduce((a, r) => a + r.balance_minor, 0))} <span style={{ fontWeight: 400, color: '#9ba29d' }}>({rows.length} invoices)</span></h3>
+                    <h3>{labels[key]} � {money(rows.reduce((a, r) => a + r.balance_minor, 0))} <span style={{ fontWeight: 400, color: '#9ba29d' }}>({rows.length} invoices)</span></h3>
                     {rows.length ? rows.map(r => (
                       <div className="aging-invoice" key={r.id}>
                         <b>{r.invoice_number}</b>
@@ -2064,16 +2116,16 @@ export default function App() {
             </div>
           )}
 
-          {/* ── Forecast ── DISABLED — uncomment to re-enable */}
+          {/* -- Forecast -- DISABLED � uncomment to re-enable */}
           {/* {page === 'Forecast' && (
             <ForecastPage orgId={org.id} />
           )} */}
 
-          {/* ── AI Assistant ── */}
+          {/* -- AI Assistant -- */}
           {page === 'AI Assistant' && (
             <div className="panel ai-panel">
               <div className="panel-head">
-                <div><h2>AI Finance Assistant</h2><p>Ask questions about your FinancialRecord — answers are based on your live data.</p></div>
+                <div><h2>AI Finance Assistant</h2><p>Ask questions about your FinancialRecord � answers are based on your live data.</p></div>
               </div>
               <div className="ai-body">
                 <div className="ai-disclaimer">
@@ -2088,11 +2140,11 @@ export default function App() {
                     className="ai-input"
                   />
                   <button className="primary" disabled={asking || !question.trim()}>
-                    {asking ? <><RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> Thinking…</> : <><Bot size={15} /> Ask</>}
+                    {asking ? <><RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> Thinking�</> : <><Bot size={15} /> Ask</>}
                   </button>
                 </form>
 
-                {/* Error banner — shown instead of the answer box */}
+                {/* Error banner � shown instead of the answer box */}
                 {aiError && (
                   <div className={`ai-error-banner ${aiError.type === 'llm_quota_exceeded' ? 'ai-error-quota' : 'ai-error-generic'}`}>
                     <div className="ai-error-header">
@@ -2107,7 +2159,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Answer box — only shown on success */}
+                {/* Answer box � only shown on success */}
                 {answer && !aiError && (
                   <div className="ai-answer">
                     <div className="ai-answer-label"><CheckCircle size={14} /> Answer</div>
@@ -2135,7 +2187,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ── Notifications ── */}
+          {/* -- Notifications -- */}
           {page === 'Notifications' && (
             <div className="panel">
               <div className="panel-head">
@@ -2157,10 +2209,10 @@ export default function App() {
             </div>
           )}
 
-          {/* ── Audit log ── DISABLED — uncomment to re-enable */}
+          {/* -- Audit log -- DISABLED � uncomment to re-enable */}
           {/* {page === 'Audit Log' && <AuditLogPage orgId={org.id} />} */}
 
-          {/* ── Settings ── */}
+          {/* -- Settings -- */}
           {page === 'Settings' && (
             <div className="panel">
               <div className="panel-head"><div><h2>Organization settings</h2><p>Manage your workspace</p></div></div>
@@ -2175,7 +2227,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ── Products ── */}
+          {/* -- Products -- */}
           {page === 'Products' && org && (
             <ProductsPage
               orgId={org.id} products={products} gstRates={gstRates}
@@ -2185,8 +2237,8 @@ export default function App() {
             />
           )}
 
-          {/* ── Reminders / Reconciliation (coming soon) ── */}
-          {/* RECONCILIATION DISABLED — uncomment `|| page === 'Reconciliation'` to re-enable */}
+          {/* -- Reminders / Reconciliation (coming soon) -- */}
+          {/* RECONCILIATION DISABLED � uncomment `|| page === 'Reconciliation'` to re-enable */}
           {(page === 'Reminders' /* || page === 'Reconciliation' */) && (
             <div className="coming">
               <div className="coming-icon"><Activity size={24} /></div>
@@ -2198,7 +2250,7 @@ export default function App() {
           )}
 
           <footer>
-            FinPilot AI <span>·</span> INR reporting <span>·</span> Data as of {dashboard?.as_of || 'today'}
+            FinPilot AI <span>�</span> INR reporting <span>�</span> Data as of {dashboard?.as_of || 'today'}
             <span className="footer-right">Questions? <a href="mailto:support@finpilot.ai">Talk to our team</a></span>
           </footer>
         </section>
@@ -2243,7 +2295,7 @@ export default function App() {
         />
       )}
 
-      {/* ── Logout confirm dialog ─────────────────────────────────────── */}
+      {/* -- Logout confirm dialog --------------------------------------- */}
       {logoutConfirm && (
         <div
           className="backdrop"
@@ -2281,7 +2333,7 @@ export default function App() {
                 aria-busy={loggingOut}
                 data-testid="confirm-logout-btn"
               >
-                <LogOut size={15} />{loggingOut ? 'Signing out…' : 'Sign out'}
+                <LogOut size={15} />{loggingOut ? 'Signing out�' : 'Sign out'}
               </button>
             </div>
           </section>
@@ -2291,7 +2343,7 @@ export default function App() {
   )
 }
 
-// ── Forecast page component ── DISABLED — uncomment to re-enable ─────────────
+// -- Forecast page component -- DISABLED � uncomment to re-enable -------------
 /*
 function ForecastPage({ orgId }: { orgId: string }) {
   const [period, setPeriod] = useState<7 | 30 | 60>(30)
@@ -2307,7 +2359,7 @@ function ForecastPage({ orgId }: { orgId: string }) {
   return (
     <div className="panel">
       <div className="panel-head">
-        <div><h2>Cash inflow forecast</h2><p>Expected receivables — not a full cash balance. Excludes expenses, payroll, and other outflows.</p></div>
+        <div><h2>Cash inflow forecast</h2><p>Expected receivables � not a full cash balance. Excludes expenses, payroll, and other outflows.</p></div>
         <div className="toolbar">
           <select value={period} onChange={e => setPeriod(Number(e.target.value) as 7 | 30 | 60)} style={{ height: 34, borderRadius: 7, border: '1px solid #e3e8e5', padding: '0 9px', fontSize: 12 }}>
             <option value={7}>7 days</option>
@@ -2320,7 +2372,7 @@ function ForecastPage({ orgId }: { orgId: string }) {
           </select>
         </div>
       </div>
-      {loading && <div className="empty"><RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} /> Loading forecast…</div>}
+      {loading && <div className="empty"><RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} /> Loading forecast�</div>}
       {data && !loading && (
         <div style={{ padding: '0 24px 20px' }}>
           {data.insufficient_history && (
@@ -2340,9 +2392,9 @@ function ForecastPage({ orgId }: { orgId: string }) {
           </div>
           <div style={{ fontSize: 11, color: '#9aa39e', marginTop: 12, borderTop: '1px solid #f0f2f1', paddingTop: 12 }}>
             <strong>Assumptions:</strong>{' '}
-            Timing: {String(data.assumptions.timing_assumption)}{' '}·{' '}
-            Conservative offset: +{String(data.assumptions.conservative_offset_days)} days{' '}·{' '}
-            Base offset: {String(data.assumptions.base_offset_days)} days{' '}·{' '}
+            Timing: {String(data.assumptions.timing_assumption)}{' '}�{' '}
+            Conservative offset: +{String(data.assumptions.conservative_offset_days)} days{' '}�{' '}
+            Base offset: {String(data.assumptions.base_offset_days)} days{' '}�{' '}
             Optimistic offset: {String(data.assumptions.optimistic_offset_days)} days
           </div>
         </div>
@@ -2352,7 +2404,7 @@ function ForecastPage({ orgId }: { orgId: string }) {
 }
 */
 
-// ── Audit log page ── DISABLED — uncomment to re-enable ─────────────────────
+// -- Audit log page -- DISABLED � uncomment to re-enable ---------------------
 /*
 function AuditLogPage({ orgId }: { orgId: string }) {
   const [logs, setLogs] = useState<import('./lib/api').AuditLog[]>([])
