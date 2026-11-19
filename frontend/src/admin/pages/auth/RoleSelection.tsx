@@ -14,11 +14,6 @@ export default function RoleSelection({ onSelectRole }: RoleSelectionProps) {
     {
       id: 'super_admin',
       icon: <ShieldCheck size={28} className="role-card-icon super-admin" />,
-      isReady: false,
-    },
-    {
-      id: 'platform_admin',
-      icon: <ServerCog size={28} className="role-card-icon platform-admin" />,
       isReady: true,
     },
     {
@@ -34,11 +29,11 @@ export default function RoleSelection({ onSelectRole }: RoleSelectionProps) {
   ]
 
   const handleCardClick = (roleId: AdminRole, isReady: boolean) => {
-    if (roleId === 'platform_admin' || isReady) {
+    if (roleId === 'super_admin' || isReady) {
       setNotice(null)
       onSelectRole(roleId)
     } else {
-      setNotice(`The ${ADMIN_ROLES[roleId].name} portal is restricted in this release. Please select Platform Admin.`)
+      setNotice(`The ${ADMIN_ROLES[roleId].name} portal is restricted in this release. Please select Super Admin.`)
     }
   }
 
@@ -71,12 +66,12 @@ export default function RoleSelection({ onSelectRole }: RoleSelectionProps) {
         <div className="admin-roles-grid">
           {rolesConfig.map(({ id, icon, isReady }) => {
             const role = ADMIN_ROLES[id]
-            const isPlatformAdmin = id === 'platform_admin'
+            const isSuperAdmin = id === 'super_admin'
             return (
               <div
                 key={id}
                 onClick={() => handleCardClick(id, isReady)}
-                className={`admin-role-card ${isPlatformAdmin ? 'featured' : 'disabled-role'}`}
+                className={`admin-role-card ${isSuperAdmin ? 'featured' : 'disabled-role'}`}
                 tabIndex={0}
                 role="button"
                 onKeyDown={(e) => {
@@ -85,7 +80,7 @@ export default function RoleSelection({ onSelectRole }: RoleSelectionProps) {
               >
                 <div className="admin-role-card-top">
                   <div className="role-icon-box">{icon}</div>
-                  {isPlatformAdmin ? (
+                  {isSuperAdmin ? (
                     <span className="admin-role-status-pill ready">Active Portal</span>
                   ) : (
                     <span className="admin-role-status-pill upcoming">Upcoming</span>
@@ -98,7 +93,7 @@ export default function RoleSelection({ onSelectRole }: RoleSelectionProps) {
 
                 <div className="admin-role-card-footer">
                   <span className="role-action-text">
-                    {isPlatformAdmin ? 'Access Platform Admin' : 'Portal restricted'}
+                    {isSuperAdmin ? 'Access Super Admin' : 'Portal restricted'}
                   </span>
                   <ArrowRight size={16} className="role-arrow" />
                 </div>

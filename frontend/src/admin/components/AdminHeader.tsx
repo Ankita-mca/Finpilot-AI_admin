@@ -30,7 +30,7 @@ interface SearchSuggestion {
 export default function AdminHeader({
   user,
   onLogout,
-  breadcrumb = 'Platform Admin / Overview / Dashboard',
+  breadcrumb = 'Super Admin / Overview / Dashboard',
   unreadCount = 3,
   onToggleMobileMenu,
   onNavigate,
@@ -135,14 +135,14 @@ export default function AdminHeader({
     }
   }
 
-  const roleText = user?.role === 'super_admin' ? 'Super Admin' : 'Platform Admin'
-  const userDisplayName = user?.full_name || 'Platform Admin'
+  const roleText = user?.role === 'super_admin' ? 'Super Admin' : 'Super Admin'
+  const userDisplayName = user?.full_name || 'Super Admin'
   const userDisplayEmail = user?.email || 'admin@finpilot.ai'
 
   // Parse breadcrumb trail
   const breadcrumbSegments = breadcrumb.includes('/')
     ? breadcrumb.split('/').map((s) => s.trim()).filter(Boolean)
-    : ['Platform Admin', 'Overview', 'Dashboard']
+    : ['Super Admin', 'Overview', 'Dashboard']
 
   return (
     <header className="admin-header">

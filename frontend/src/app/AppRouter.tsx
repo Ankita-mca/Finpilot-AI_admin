@@ -27,7 +27,7 @@ function AdminPortal() {
     return window.location.pathname.startsWith('/admin') ? (window.location.pathname + window.location.search) : '/admin'
   })
 
-  const { adminUser, loading, error, login, logout, clearError } = useAdminAuth('platform_admin')
+  const { adminUser, loading, error, login, logout, clearError } = useAdminAuth('super_admin')
 
   // Listen to browser popstate (back/forward)
   useEffect(() => {
@@ -44,7 +44,7 @@ function AdminPortal() {
   }
 
   const handleRoleSelected = (role: AdminRole) => {
-    if (role === 'platform_admin') {
+    if (role === 'super_admin') {
       navigate('/admin/login')
     }
   }

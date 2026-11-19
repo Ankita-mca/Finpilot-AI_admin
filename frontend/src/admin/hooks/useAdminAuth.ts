@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { adminApi, AdminApiError } from '../services/adminApi'
 import type { AdminUser, AdminRole } from '../types/admin.types'
 
-export function useAdminAuth(requiredRole: AdminRole = 'platform_admin') {
+export function useAdminAuth(requiredRole: AdminRole = 'super_admin') {
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -50,7 +50,7 @@ export function useAdminAuth(requiredRole: AdminRole = 'platform_admin') {
       if (user.role !== requiredRole && user.role !== 'super_admin') {
         // Clear session since user is unauthorized for this portal
         await adminApi.logout()
-        const deniedMsg = `Access Denied: Your account does not have Platform Admin privileges.`
+        const deniedMsg = `Access Denied: Your account does not have Super Admin privileges.`
         setError(deniedMsg)
         throw new Error(deniedMsg)
       }

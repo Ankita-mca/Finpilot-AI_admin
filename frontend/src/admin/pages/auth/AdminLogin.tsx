@@ -86,9 +86,9 @@ export default function AdminLogin({
               <span className="admin-brand-tag">Ops Portal</span>
             </div>
           </div>
-          <h2 className="admin-login-title">Platform Admin Portal</h2>
+          <h2 className="admin-login-title">Super Admin Portal</h2>
           <p className="admin-login-subtitle">
-            Enter your authorized platform credentials to access operations management.
+            Enter your authorized super administrator credentials to access platform control.
           </p>
         </div>
 
@@ -191,10 +191,10 @@ export default function AdminLogin({
             className="w-full"
             style={{ width: '100%', height: '42px', marginTop: '0.5rem' }}
             loading={isBusy}
-            loadingText="Verifying Platform Role..."
+            loadingText="Verifying Super Admin Role..."
             icon={<Lock size={16} />}
           >
-            Sign In as Platform Admin
+            Sign In as Super Admin
           </AdminButton>
         </form>
 

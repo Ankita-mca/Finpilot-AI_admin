@@ -102,7 +102,7 @@ export default function AdminSidebar({
     }
   }
 
-  const roleLabel = user?.role === 'super_admin' ? 'SUPER ADMIN' : 'PLATFORM ADMIN'
+  const roleLabel = 'SUPER ADMIN'
 
   return (
     <>
