@@ -70,6 +70,10 @@
                   "if (body.organization_id) {",
                   "    pm.environment.set('organization_id', body.organization_id);",
                   "    console.log('Organization ID set: ' + body.organization_id);",
+                  "}",
+                  "const csrf = pm.cookies.get('csrftoken');",
+                  "if (csrf) {",
+                  "    pm.environment.set('csrf_token', csrf);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -110,6 +114,11 @@
                   "    console.log('Session cookie captured');",
                   "} else {",
                   "    console.warn('sessionid cookie not found');",
+                  "}",
+                  "const csrf = pm.cookies.get('csrftoken');",
+                  "if (csrf) {",
+                  "    pm.environment.set('csrf_token', csrf);",
+                  "    console.log('CSRF token updated after login: ' + csrf);",
                   "}"
                 ],
                 "type": "text/javascript"

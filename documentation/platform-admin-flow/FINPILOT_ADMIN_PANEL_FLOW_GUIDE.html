@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinPilot AI — Platform Admin Panel Architecture & Flow Guide</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --primary: #10b981;
+      --primary-dark: #059669;
+      --primary-light: #ecfdf5;
+      --navy-dark: #0f172a;
+      --navy-surface: #1e293b;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --info: #3b82f6;
+      --radius: 10px;
+      --shadow: 0 4px 6px -1px rgba(0,0,0,0.06), 0 2px 4px -2px rgba(0,0,0,0.04);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* Top Sticky Navigation */
+    header {
+      background-color: var(--navy-dark);
+      color: #ffffff;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 2px solid #334155;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .brand-badge {
+      background-color: var(--primary);
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 0.85rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+    }
+    .header-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .header-subtitle {
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+    .btn {
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-outline { background: transparent; border-color: #475569; color: #cbd5e1; }
+    .btn-outline:hover { background: #334155; color: white; }
+
+    /* Main Container */
+    .container {
+      max-width: 1300px;
+      margin: 1.5rem auto;
+      padding: 0 1.5rem;
+      width: 100%;
+      flex: 1;
+    }
+
+    /* Tabs Navigation */
+    .tab-nav {
+      display: flex;
+      gap: 0.5rem;
+      background: #e2e8f0;
+      padding: 0.35rem;
+      border-radius: var(--radius);
+      margin-bottom: 2rem;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      padding: 0.65rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .tab-btn.active {
+      background: white;
+      color: var(--navy-dark);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    }
+
+    /* Tab Content Panes */
+    .tab-pane {
+      display: none;
+    }
+    .tab-pane.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Cards & Layout */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      margin-bottom: 1.75rem;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      color: var(--navy-dark);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card-desc {
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+      font-size: 0.95rem;
+    }
+
+    /* Grid layout */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 1.5rem;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+    }
+
+    /* Stat Cards */
+    .stat-box {
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+    .stat-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; }
+    .stat-value { font-size: 1.8rem; font-weight: 700; color: var(--navy-dark); margin: 0.25rem 0; }
+    .stat-sub { font-size: 0.85rem; color: var(--primary); font-weight: 600; }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background-color: #f8fafc;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    tr:hover { background-color: #f1f5f9; }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .badge-info { background: #e0f2fe; color: #075985; }
+    .badge-neutral { background: #e2e8f0; color: #334155; }
+
+    /* Code & Pre */
+    pre, code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85rem;
+    }
+    code {
+      background: #e2e8f0;
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      color: #0f172a;
+    }
+    pre {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 1.25rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+
+    /* Mermaid diagrams container */
+    .diagram-container {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1.25rem 0;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    /* Flow step card */
+    .flow-step {
+      display: flex;
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      border-radius: 8px;
+      padding: 1.25rem;
+      align-items: flex-start;
+    }
+    .flow-number {
+      background: var(--primary);
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      flex-shrink: 0;
+      font-size: 0.95rem;
+    }
+    .flow-body { flex: 1; }
+    .flow-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.25rem; color: var(--navy-dark); }
+    .flow-path { font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem; }
+
+    /* Footer */
+    footer {
+      background: var(--navy-dark);
+      color: #94a3b8;
+      padding: 2rem;
+      text-align: center;
+      font-size: 0.85rem;
+      margin-top: auto;
+      border-top: 1px solid #1e293b;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header>
+    <div class="header-brand">
+      <span class="brand-badge">FP ADMIN</span>
+      <div>
+        <div class="header-title">FinPilot AI — Platform Admin Panel</div>
+        <div class="header-subtitle">Architecture, Full Auth Flow, RBAC & Module Directory Guide</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      <a class="btn btn-outline" href="FINPILOT_ADMIN_PANEL_COMPLETE_FLOW.md" download>📥 Download Markdown</a>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <div class="container">
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="showTab('flow')">🚀 Sign In to Dashboard Flow</button>
+      <button class="tab-btn" onclick="showTab('auth')">🔐 Auth & RBAC Roles</button>
+      <button class="tab-btn" onclick="showTab('routing')">🧭 Navigation & Shell</button>
+      <button class="tab-btn" onclick="showTab('modules')">📊 13 Module Catalog</button>
+      <button class="tab-btn" onclick="showTab('api')">⚡ API Contracts & Dual-Mode</button>
+      <button class="tab-btn" onclick="showTab('files')">📁 Codebase Map</button>
+    </div>
+
+    <!-- TAB 1: Complete Flow -->
+    <div id="flow" class="tab-pane active">
+      <div class="card">
+        <h2 class="card-title">🚀 Complete Flow: From Sign In to Dashboard</h2>
+        <p class="card-desc">Walkthrough of how a platform operator accesses the portal, authenticates, verifies role permissions, and enters the operational dashboard.</p>
+        
+        <div class="diagram-container">
+          <pre class="mermaid">
+flowchart LR
+    A["1. /admin Gate"] --> B["2. RoleSelection.tsx"]
+    B -->|Select Platform Admin| C["3. AdminLogin.tsx"]
+    C -->|Submit Credentials| D["4. POST /api/v1/auth/login/"]
+    D -->|Session Created| E["5. GET /api/v1/admin/me/"]
+    E -->|Verify is_staff| F["6. AppRouter.tsx (/admin/dashboard)"]
+    F --> G["7. AdminLayout Shell"]
+    G --> H["8. Dashboard.tsx (KPIs & Telemetry)"]
+          </pre>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-number">1</div>
+          <div class="flow-body">
+            <div class="flow-title">Gateway Access: /admin</div>
+            <div class="flow-path">File: <code>frontend/src/app/AppRouter.tsx</code></div>
+            <p>The user requests <code>/admin</code>. AppRouter checks <code>window.location.pathname.startsWith('/admin')</code> and mounts the isolated <code>AdminPortal</code>. Tenant components and hooks are not initialized.</p>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-number">2</div>
+          <div class="flow-body">
+            <div class="flow-title">Operational Role Selection</div>
+            <div class="flow-path">File: <code>frontend/src/admin/pages/auth/RoleSelection.tsx</code></div>
+            <p>Staff members select their functional role (Platform Admin, Super Admin, Support Agent, Analyst). Selecting <strong>Platform Admin</strong> navigates to <code>/admin/login</code>. Restricted roles display informative notification banners.</p>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-number">3</div>
+          <div class="flow-body">
+            <div class="flow-title">Staff Sign-In Submission</div>
+            <div class="flow-path">File: <code>frontend/src/admin/pages/auth/AdminLogin.tsx</code></div>
+            <p>Input email (<code>admin@finpilot.ai</code>) and password. Client-side RFC 5322 regex checks valid email syntax. Submits through <code>useAdminAuth.login()</code> hook with interactive loading spinner.</p>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-number">4</div>
+          <div class="flow-body">
+            <div class="flow-title">Backend Session Authentication</div>
+            <div class="flow-path">Endpoint: <code>POST /api/v1/auth/login/</code></div>
+            <p>Django backend validates credentials against the database and sets the secure, HTTP-only session cookie (<code>sessionid</code>) and CSRF token.</p>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-number">5</div>
+          <div class="flow-body">
+            <div class="flow-title">Platform Staff Role Verification</div>
+            <div class="flow-path">File: <code>backend/platform_admin/views/auth_views.py</code> | Endpoint: <code>GET /api/v1/admin/me/</code></div>
+            <p>Backend inspects <code>request.user</code>:
+              <br>• If <code>is_superuser</code>: returns <code>role: "super_admin"</code>.
+              <br>• If <code>is_staff</code>: returns <code>role: "platform_admin"</code>.
+              <br>• If standard customer user: returns <strong>403 Forbidden</strong>. The frontend immediately wipes the session cookie via <code>adminApi.logout()</code> and shows <em>"Access Denied"</em>.
+            </p>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-number">6</div>
+          <div class="flow-body">
+            <div class="flow-title">Application Shell Mounting</div>
+            <div class="flow-path">File: <code>frontend/src/admin/layouts/AdminLayout.tsx</code></div>
+            <p>Renders <code>AdminHeader.tsx</code> (global search, alert badge, profile menu), <code>AdminSidebar.tsx</code> (5 navigation categories), and <code>AdminBreadcrumb.tsx</code>.</p>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-number">7</div>
+          <div class="flow-body">
+            <div class="flow-title">Dashboard Telemetry Loaded</div>
+            <div class="flow-path">File: <code>frontend/src/admin/pages/Dashboard.tsx</code></div>
+            <p>Presents KPI stat cards (Organizations: 1,248, Users: 8,642, Active Subscriptions: 986, AI Requests: 42.8K), subscription distribution ring, and real-time platform activity stream.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Auth & RBAC -->
+    <div id="auth" class="tab-pane">
+      <div class="card">
+        <h2 class="card-title">🔐 Role-Based Access Control (RBAC) Matrix</h2>
+        <p class="card-desc">Detailed permission breakdown defined in <code>frontend/src/admin/permissions/adminRoles.ts</code>.</p>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Permission Capability</th>
+              <th>Super Admin (<code>super_admin</code>)</th>
+              <th>Platform Admin (<code>platform_admin</code>)</th>
+              <th>Support Agent (<code>support_agent</code>)</th>
+              <th>Analyst (<code>analyst</code>)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Access Platform Admin UI</strong></td>
+              <td><span class="badge badge-success">ALLOWED</span></td>
+              <td><span class="badge badge-success">ALLOWED</span></td>
+              <td><span class="badge badge-info">PREVIEW</span></td>
+              <td><span class="badge badge-info">PREVIEW</span></td>
+            </tr>
+            <tr>
+              <td><strong>Manage Organizations</strong></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-neutral">READ ONLY</span></td>
+              <td><span class="badge badge-neutral">READ ONLY</span></td>
+            </tr>
+            <tr>
+              <td><strong>Manage Customer Users</strong></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-neutral">READ ONLY</span></td>
+              <td><span class="badge badge-danger">BLOCKED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Manage Subscriptions</strong></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-danger">BLOCKED</span></td>
+              <td><span class="badge badge-danger">BLOCKED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Usage Quotas & Overrides</strong></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-danger">BLOCKED</span></td>
+              <td><span class="badge badge-neutral">READ ONLY</span></td>
+            </tr>
+            <tr>
+              <td><strong>AI Monitoring & Kill-Switch</strong></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-danger">BLOCKED</span></td>
+              <td><span class="badge badge-neutral">READ ONLY</span></td>
+            </tr>
+            <tr>
+              <td><strong>Zero-Trust Support Impersonation</strong></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-warning">REQUEST ONLY</span></td>
+              <td><span class="badge badge-danger">BLOCKED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Manage Subscription Plans</strong></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-danger">BLOCKED (Locked)</span></td>
+              <td><span class="badge badge-danger">BLOCKED</span></td>
+              <td><span class="badge badge-danger">BLOCKED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Manage Staff Roles & Invites</strong></td>
+              <td><span class="badge badge-success">FULL</span></td>
+              <td><span class="badge badge-danger">BLOCKED (Locked)</span></td>
+              <td><span class="badge badge-danger">BLOCKED</span></td>
+              <td><span class="badge badge-danger">BLOCKED</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">🛡️ Super Admin Protection Safeguards</h2>
+        <p class="card-desc">Enforcement logic ensuring <code>platform_admin</code> cannot bypass into <code>/admin/plans</code> or <code>/admin/staff</code>.</p>
+        <pre><code>// frontend/src/app/AppRouter.tsx
+if (pathname === '/admin/plans' || pathname === '/admin/staff') {
+  if (adminUser && adminUser.role !== 'super_admin') {
+    // Intercept and redirect unauthorized staff
+    navigate('/admin/dashboard')
+  }
+}</code></pre>
+      </div>
+    </div>
+
+    <!-- TAB 3: Routing & Shell -->
+    <div id="routing" class="tab-pane">
+      <div class="card">
+        <h2 class="card-title">🧭 Navigation Route Catalog</h2>
+        <p class="card-desc">All registered paths managed inside <code>frontend/src/app/AppRouter.tsx</code>.</p>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Route</th>
+              <th>Component</th>
+              <th>Section</th>
+              <th>Role Restriction</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>/admin</code></td>
+              <td><code>RoleSelection.tsx</code></td>
+              <td>Auth Gateway</td>
+              <td>Public</td>
+            </tr>
+            <tr>
+              <td><code>/admin/login</code></td>
+              <td><code>AdminLogin.tsx</code></td>
+              <td>Auth Gateway</td>
+              <td>Public</td>
+            </tr>
+            <tr>
+              <td><code>/admin/dashboard</code></td>
+              <td><code>Dashboard.tsx</code></td>
+              <td>OVERVIEW</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/organizations</code></td>
+              <td><code>Organizations.tsx</code></td>
+              <td>MANAGEMENT</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/organizations?id=:id</code></td>
+              <td><code>OrganizationDetail.tsx</code></td>
+              <td>MANAGEMENT</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/users</code></td>
+              <td><code>Users.tsx</code></td>
+              <td>MANAGEMENT (Customers)</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/subscriptions</code></td>
+              <td><code>Subscriptions.tsx</code></td>
+              <td>MANAGEMENT</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/usage</code></td>
+              <td><code>Usage.tsx</code></td>
+              <td>MANAGEMENT</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/ai-monitoring</code></td>
+              <td><code>AIMonitoring.tsx</code></td>
+              <td>MONITORING</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/reminders</code></td>
+              <td><code>Reminders.tsx</code></td>
+              <td>MONITORING</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/operations</code></td>
+              <td><code>Operations.tsx</code></td>
+              <td>MONITORING</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/audit-logs</code></td>
+              <td><code>AuditLogs.tsx</code></td>
+              <td>MONITORING</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/notifications</code></td>
+              <td><code>Notifications.tsx</code></td>
+              <td>CONTROL</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/settings</code></td>
+              <td><code>Settings.tsx</code></td>
+              <td>CONTROL</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/support-access</code></td>
+              <td><code>SupportAccess.tsx</code></td>
+              <td>CONTROL</td>
+              <td>Staff Authenticated</td>
+            </tr>
+            <tr>
+              <td><code>/admin/plans</code></td>
+              <td><code>Plans.tsx</code></td>
+              <td>SUPER ADMIN RESTRICTED</td>
+              <td><span class="badge badge-danger">super_admin ONLY</span></td>
+            </tr>
+            <tr>
+              <td><code>/admin/staff</code></td>
+              <td><code>StaffRoles.tsx</code></td>
+              <td>SUPER ADMIN RESTRICTED</td>
+              <td><span class="badge badge-danger">super_admin ONLY</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 4: Modules -->
+    <div id="modules" class="tab-pane">
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title">1. Dashboard</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/Dashboard.tsx</code></p>
+          <p>KPI metrics (Organizations: 1,248, Users: 8,642, MRR: ₹48.2L, AI Tokens: 42.8M), subscription breakdown donut, and live platform events stream.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">2. Organizations</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/Organizations.tsx</code></p>
+          <p>Tenant directory with search, status filters (Active, Trial, Suspended, Closed), Suspend Organization confirmation dialog, and detail drill-down.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">3. Customers Management</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/Users.tsx</code></p>
+          <p>Customer directory across tenants, active session counts, status toggles, customer deactivation confirmation modal, and password reset dispatches.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">4. Subscriptions</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/Subscriptions.tsx</code></p>
+          <p>MRR analytics, billing cycle breakdown (Monthly/Annual), plan upgrade/downgrade modal, and trial extension dialog (7/14/30 days).</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">5. Platform Usage</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/Usage.tsx</code></p>
+          <p>Resource quota meters (Users, Invoices, AI Tokens), 80% & 100% threshold warning indicators, and temporary quota override modal.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">6. AI Monitoring</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/AIMonitoring.tsx</code></p>
+          <p>Prompt & output token telemetry, cost USD tracker, model distribution (Gemini Pro, Flash, Claude), and Emergency Global AI Kill-Switch.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">7. Payment Reminders</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/Reminders.tsx</code></p>
+          <p>Scheduler engine monitor, WhatsApp/Email/SMS queue health, delivery success rates, and engine pause/resume modal.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">8. Background Operations</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/Operations.tsx</code></p>
+          <p>Celery worker node health, active task queues, bank statement ingestion status, and cron schedule inspector.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">9. Security Audit Logs</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/AuditLogs.tsx</code></p>
+          <p>Immutable platform audit trail, actor filtering, action filters (login, suspend, plan change, support access), and JSON/CSV export.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">10. Notifications</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/Notifications.tsx</code></p>
+          <p>System announcements composer targeting All Tenants or specific Plan Tiers with scheduled auto-expiry.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">11. Global Settings</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/Settings.tsx</code></p>
+          <p>Platform maintenance mode toggle, staff IP whitelisting, session timeout threshold, and API rate limits.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">12. Support Access</h3>
+          <p class="card-desc"><code>frontend/src/admin/pages/SupportAccess.tsx</code></p>
+          <p>Zero-trust time-bound tenant impersonation requiring support ticket ID, live countdown timer, and single-click revocation.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: API Contracts -->
+    <div id="api" class="tab-pane">
+      <div class="card">
+        <h2 class="card-title">⚡ Backend REST API Endpoints</h2>
+        <p class="card-desc">Mounted under <code>/api/v1/admin/*</code> in <code>backend/platform_admin/urls.py</code>.</p>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Endpoint Path</th>
+              <th>Controller File</th>
+              <th>Permissions</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>GET</code></td>
+              <td><code>/api/v1/admin/me/</code></td>
+              <td><code>auth_views.py</code></td>
+              <td><code>IsAuthenticated</code></td>
+              <td>Staff profile and role check (verifies <code>is_staff</code> / <code>is_superuser</code>)</td>
+            </tr>
+            <tr>
+              <td><code>POST</code></td>
+              <td><code>/api/v1/admin/auth/logout/</code></td>
+              <td><code>auth_views.py</code></td>
+              <td><code>AllowAny</code></td>
+              <td>Staff session termination & cookie invalidation</td>
+            </tr>
+            <tr>
+              <td><code>GET</code></td>
+              <td><code>/api/v1/admin/orgs/</code></td>
+              <td><code>views/__init__.py</code></td>
+              <td><code>IsStaffPermission</code></td>
+              <td>Multi-tenant organization list with counts</td>
+            </tr>
+            <tr>
+              <td><code>GET</code></td>
+              <td><code>/api/v1/admin/users/</code></td>
+              <td><code>views/__init__.py</code></td>
+              <td><code>IsStaffPermission</code></td>
+              <td>Cross-tenant customer user directory</td>
+            </tr>
+            <tr>
+              <td><code>GET</code></td>
+              <td><code>/api/v1/admin/audit-logs/</code></td>
+              <td><code>views/__init__.py</code></td>
+              <td><code>IsStaffPermission</code></td>
+              <td>Immutable platform audit trail</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">🔄 Dual-Mode API Mechanics</h2>
+        <p class="card-desc">How <code>adminApi.ts</code> ensures zero downtime during local development.</p>
+        <div class="diagram-container">
+          <pre class="mermaid">
+flowchart LR
+    Page["Admin Page"] --> ApiClient["adminApi.ts"]
+    ApiClient --> TryLive["GET /api/v1/admin/*"]
+    TryLive -->|Success| Merge["Merge Live + Demo Telemetry"]
+    TryLive -->|Network Error / Offline| Fallback["Load MOCK_ORGANIZATIONS"]
+    Merge --> Result["Return { items, stats, isLive: true }"]
+    Fallback --> Result2["Return { items, stats, isLive: false }"]
+    Result --> UI["Display 'Live API' Pill"]
+    Result2 --> UI2["Display 'Demo Data Active' Pill"]
+          </pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: Codebase Map -->
+    <div id="files" class="tab-pane">
+      <div class="card">
+        <h2 class="card-title">📁 Complete Platform Admin Codebase File Map</h2>
+        <p class="card-desc">Exact file paths to inspect in your repository.</p>
+
+        <pre><code>frontend/src/
+├── app/
+│   └── AppRouter.tsx                         # Core router separating Tenant App vs Platform Admin
+└── admin/
+    ├── components/
+    │   ├── AdminBreadcrumb.tsx               # Breadcrumb trail component
+    │   ├── AdminButton.tsx                   # Design-system standardized button (primary, outline, danger)
+    │   ├── AdminConfirmDialog.tsx            # Confirmation modal (suspend, revoke, pause)
+    │   ├── AdminDataTable.tsx                # Reusable paginated data table
+    │   ├── AdminDropdown.tsx                 # Standardized popover menu
+    │   ├── AdminHeader.tsx                   # Top search, notification popover, profile menu
+    │   ├── AdminModal.tsx                    # Shared modal container
+    │   ├── AdminSelect.tsx                   # Single-select custom dropdown
+    │   ├── AdminSidebar.tsx                  # 5-section collapsible sidebar with mobile drawer
+    │   ├── AdminStatCard.tsx                 # Summary stat card with trend indicator
+    │   └── AdminTableActionMenu.tsx          # 3-dot row action dropdown
+    ├── hooks/
+    │   ├── useAdminAuth.ts                   # Session verification, login, logout lifecycle
+    │   └── useAdminPermissions.ts            # Client-side RBAC permission evaluator
+    ├── layouts/
+    │   └── AdminLayout.tsx                   # Platform Admin main layout container
+    ├── pages/
+    │   ├── auth/RoleSelection.tsx            # Entry role selector (/admin)
+    │   ├── auth/AdminLogin.tsx               # Staff credentials submission (/admin/login)
+    │   ├── AIMonitoring.tsx                  # LLM token telemetry & emergency kill-switch
+    │   ├── AuditLogs.tsx                     # Security audit log viewer & exporter
+    │   ├── Dashboard.tsx                     # Main executive overview & KPIs
+    │   ├── Notifications.tsx                 # System announcements manager
+    │   ├── Operations.tsx                    # Background worker & job health
+    │   ├── OrganizationDetail.tsx            # Single tenant drilldown (members, usage)
+    │   ├── Organizations.tsx                 # Multi-tenant directory
+    │   ├── Plans.tsx                         # Subscription plan editor (Super Admin)
+    │   ├── Reminders.tsx                     # Payment reminder scheduler engine
+    │   ├── Settings.tsx                      # Platform runtime settings
+    │   ├── StaffRoles.tsx                    # Staff user administration (Super Admin)
+    │   ├── Subscriptions.tsx                 # Subscription & MRR analytics
+    │   ├── SupportAccess.tsx                 # Zero-trust impersonation
+    │   ├── Usage.tsx                         # Quota limits & temporary overrides
+    │   └── Users.tsx                         # Customer user directory
+    ├── permissions/
+    │   └── adminRoles.ts                     # RBAC role configs & permission matrices
+    ├── services/
+    │   ├── adminApi.ts                       # Dual-mode API client
+    │   └── mockDataService.ts                # Centralized telemetry simulation dataset
+    ├── styles/
+    │   └── admin.css                         # Design system styling & tokens
+    └── types/
+        └── admin.types.ts                    # TypeScript domain interfaces
+
+backend/
+├── config/urls.py                            # Mounted platform_admin at api/v1/
+└── platform_admin/
+    ├── urls.py                               # Mounted admin endpoints (/api/v1/admin/*)
+    ├── views/
+    │   ├── __init__.py                       # Active DRF views (orgs, users, audit-logs)
+    │   └── auth_views.py                     # Staff auth views (admin_me, admin_logout)
+    ├── permissions.py                        # IsStaffPermission & future RBAC classes
+    ├── services/
+    │   ├── metric_service.py                 # Telemetry aggregation service
+    │   └── support_service.py                # Zero-trust impersonation token engine
+    └── tests/test_admin_permissions.py       # Auth & permission test suite</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    FinPilot AI Platform Admin Documentation • Built for Engineering, Product & Audit Reviews • November 2026
+  </footer>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+
+    function showTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      
+      const targetPane = document.getElementById(tabId);
+      if (targetPane) {
+        targetPane.classList.add('active');
+      }
+      
+      const clickedBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+      if (clickedBtn) {
+        clickedBtn.classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>
+
