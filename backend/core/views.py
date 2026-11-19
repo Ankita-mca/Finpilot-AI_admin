@@ -4,7 +4,7 @@ import urllib.parse
 from django.contrib.auth import authenticate, get_user_model, login, logout, password_validation
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseRedirect
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 
@@ -225,7 +225,7 @@ class PaymentViewSet(OrgScopedMixin, viewsets.ModelViewSet):
                 entity_type="payment_allocation",
                 entity_id=str(alloc.id),
                 summary=(
-                    f"Reversed allocation of â‚¹{alloc.amount_minor / 100:.2f} "
+                    f"Reversed allocation of ₹{alloc.amount_minor / 100:.2f} "
                     f"from payment {payment.id} to invoice {alloc.invoice.invoice_number}"
                 ),
             )
@@ -492,15 +492,20 @@ def sign_in(request):
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 def register(request):
+    """
+    Register a new user account.
+    NOTE: Does NOT create an organization automatically.
+    Users must complete organization setup after registration.
+    """
     payload = request.data
     email = str(payload.get("email", "")).strip().lower()
     full_name = str(payload.get("full_name", "")).strip()
-    org_name = str(payload.get("organization_name", "")).strip()
+    # org_name parameter is still accepted for backward compatibility but not used
     password = str(payload.get("password", ""))
 
-    if not email or not full_name or not org_name or not password:
+    if not email or not full_name or not password:
         return Response(
-            {"detail": "Name, email, password, and business name are required."},
+            {"detail": "Name, email, and password are required."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -524,28 +529,24 @@ def register(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    with transaction.atomic():
-        user.set_password(password)
-        user.save()
-        org = Organization.objects.create(name=org_name)
-        Membership.objects.create(
-            organization=org, user=user, role=Membership.Role.OWNER
-        )
-        # Seed default GST rates for the new organization.
-        from products.gst import create_default_gst_rates
-        create_default_gst_rates(org)
-        AuditLog.objects.create(
-            organization=org,
-            actor=user,
-            action="auth.register",
-            entity_type="user",
-            entity_id=str(user.id),
-            summary=f"Registered user {user.email} with organization {org.name}",
-        )
-        login(request, user)
+    # Create user and log them in
+    user.set_password(password)
+    user.save()
+    
+    # Log registration
+    AuditLog.objects.create(
+        actor=user,
+        action="auth.register",
+        entity_type="user",
+        entity_id=str(user.id),
+        summary=f"Registered user {user.email}",
+    )
+    
+    # Auto-login the user
+    login(request, user)
 
     return Response(
-        {"detail": "Account created", "organization_id": str(org.id)},
+        {"detail": "Account created. Please complete organization setup."},
         status=status.HTTP_201_CREATED,
     )
 
@@ -565,7 +566,7 @@ def sign_out(request):
         )
         logout(request)
         return Response({"detail": "Signed out", "request_id": request_id})
-    # Already unauthenticated â€” idempotent success
+    # Already unauthenticated — idempotent success
     logout(request)
     return Response({"detail": "Signed out"})
 
@@ -714,10 +715,12 @@ def google_oauth_callback(request):
     
     try:
         # Verify the ID token with Google's public keys
+        # Use clock_skew_in_seconds to handle minor time differences between servers
         idinfo = id_token.verify_oauth2_token(
             id_token_str,
             google_requests.Request(),
-            settings.GOOGLE_CLIENT_ID
+            settings.GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=settings.GOOGLE_OAUTH_CLOCK_SKEW_SECONDS
         )
         
         # Verify issuer
@@ -735,11 +738,39 @@ def google_oauth_callback(request):
         if not email or not email_verified:
             raise ValueError("Email not verified or missing")
         
-    except Exception as e:
+    except ValueError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Log the specific verification failure
+        error_msg = str(e)
+        logger.error(f"Google OAuth ID token verification failed: {error_msg}")
+        
+        # Detect clock skew issues and log a helpful warning
+        if "too early" in error_msg.lower() or "too late" in error_msg.lower():
+            logger.warning(
+                "Clock skew detected between server and Google; sync system time. "
+                f"Current GOOGLE_OAUTH_CLOCK_SKEW_SECONDS: {settings.GOOGLE_OAUTH_CLOCK_SKEW_SECONDS}"
+            )
+        
         frontend_url = "http://localhost:5173"
         return JsonResponse(
             {
-                "error": f"ID token verification failed: {str(e)}",
+                "error": "ID token verification failed",
+                "error_type": "google_oauth_verification_error",
+                "redirect_url": f"{frontend_url}?google_error=verification_failed"
+            },
+            status=400
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Google OAuth token verification exception: {str(e)}")
+        
+        frontend_url = "http://localhost:5173"
+        return JsonResponse(
+            {
+                "error": "ID token verification failed",
                 "error_type": "google_oauth_verification_error",
                 "redirect_url": f"{frontend_url}?google_error=verification_failed"
             },
@@ -770,30 +801,60 @@ def google_oauth_callback(request):
         
         # Redirect to frontend
         frontend_url = "http://localhost:5173"
-        return JsonResponse({
-            "detail": "Signed in with Google",
-            "redirect_url": frontend_url
-        })
+        return HttpResponseRedirect(frontend_url)
         
     except SocialAccount.DoesNotExist:
         # Check if a user with this email already exists (password-based account)
         existing_user = User.objects.filter(email__iexact=email).first()
         
         if existing_user:
-            # Safety: do not auto-link existing password accounts to Google
-            # The user must log in with password first, then we could offer linking
+            # Safe to link: Google has verified email ownership through OAuth
+            # Link the Google account to the existing user
+            with transaction.atomic():
+                # Check if already linked to prevent duplicates
+                existing_social = SocialAccount.objects.filter(
+                    provider=SocialAccount.Provider.GOOGLE,
+                    provider_user_id=google_user_id
+                ).first()
+                
+                if not existing_social:
+                    # Create new social account link
+                    SocialAccount.objects.create(
+                        user=existing_user,
+                        provider=SocialAccount.Provider.GOOGLE,
+                        provider_user_id=google_user_id,
+                        email=email,
+                        extra_data={
+                            "name": full_name,
+                            "given_name": given_name,
+                            "family_name": family_name,
+                        }
+                    )
+                    
+                    AuditLog.objects.create(
+                        actor=existing_user,
+                        action="auth.google_linked",
+                        entity_type="user",
+                        entity_id=str(existing_user.id),
+                        summary=f"Linked Google account to existing user {existing_user.email}",
+                    )
+                
+                # Log in the user
+                login(request, existing_user, backend="django.contrib.auth.backends.ModelBackend")
+                
+                AuditLog.objects.create(
+                    actor=existing_user,
+                    action="auth.google_login",
+                    entity_type="user",
+                    entity_id=str(existing_user.id),
+                    summary=f"User {existing_user.email} signed in with Google (linked account)",
+                )
+            
+            # Redirect to frontend
             frontend_url = "http://localhost:5173"
-            error_msg = "An account with this email already exists. Please sign in with your password."
-            return JsonResponse(
-                {
-                    "error": error_msg,
-                    "error_type": "google_oauth_email_exists",
-                    "redirect_url": f"{frontend_url}?google_error={urllib.parse.quote(error_msg)}"
-                },
-                status=400
-            )
+            return HttpResponseRedirect(frontend_url)
         
-        # Create new user and link Google account
+        # Create new user and link Google account (NO organization created - user completes setup)
         with transaction.atomic():
             # Create user
             user = User.objects.create_user(
@@ -802,21 +863,7 @@ def google_oauth_callback(request):
                 first_name=given_name[:150],
                 last_name=family_name[:150],
             )
-            # No password set â€” this is a Google-only account
-            
-            # Create default organization
-            org_name = f"{full_name}'s Business" if full_name else f"{email.split('@')[0]}'s Business"
-            org = Organization.objects.create(name=org_name)
-            
-            Membership.objects.create(
-                organization=org,
-                user=user,
-                role=Membership.Role.OWNER
-            )
-            
-            # Seed default GST rates
-            from products.gst import create_default_gst_rates
-            create_default_gst_rates(org)
+            # No password set - this is a Google-only account
             
             # Link Google account
             SocialAccount.objects.create(
@@ -832,21 +879,18 @@ def google_oauth_callback(request):
             )
             
             AuditLog.objects.create(
-                organization=org,
                 actor=user,
                 action="auth.google_register",
                 entity_type="user",
                 entity_id=str(user.id),
-                summary=f"Registered user {user.email} via Google OAuth with organization {org.name}",
+                summary=f"Registered user {user.email} via Google OAuth (org setup pending)",
             )
             
+            # Log in the new user
             # Log in the new user
             login(request, user, backend="django.contrib.auth.backends.ModelBackend")
         
         # Redirect to frontend
         frontend_url = "http://localhost:5173"
-        return JsonResponse({
-            "detail": "Account created with Google",
-            "redirect_url": frontend_url
-        })
+        return HttpResponseRedirect(frontend_url)
 

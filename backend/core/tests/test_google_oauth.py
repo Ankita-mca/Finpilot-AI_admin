@@ -94,3 +94,112 @@ class TestGoogleOAuthCallback:
         assert response.status_code == 400
         data = response.json()
         assert data['error_type'] == 'google_oauth_no_code'
+
+
+@pytest.mark.django_db
+class TestGoogleOAuthClockSkew:
+    """Test clock skew handling in Google OAuth callback."""
+    
+    def test_clock_skew_error_redirects_without_creating_user(self, client: Client, monkeypatch):
+        """When ID token verification fails due to clock skew, no user is created and redirect is returned."""
+        from unittest.mock import patch, MagicMock
+        from django.contrib.auth import get_user_model
+        
+        User = get_user_model()
+        initial_user_count = User.objects.count()
+        
+        # Set up session state
+        session = client.session
+        session['google_oauth_state'] = 'test-state'
+        session.save()
+        
+        # Mock settings
+        monkeypatch.setattr('django.conf.settings.GOOGLE_CLIENT_ID', 'test-client-id')
+        monkeypatch.setattr('django.conf.settings.GOOGLE_CLIENT_SECRET', 'test-secret')
+        monkeypatch.setattr('django.conf.settings.GOOGLE_REDIRECT_URI', 'http://localhost:8000/callback')
+        monkeypatch.setattr('django.conf.settings.GOOGLE_OAUTH_CLOCK_SKEW_SECONDS', 10)
+        
+        # Mock the requests.post for token exchange to return a valid response
+        mock_token_response = MagicMock()
+        mock_token_response.json.return_value = {'id_token': 'fake-token'}
+        mock_token_response.raise_for_status = MagicMock()
+        
+        # Mock verify_oauth2_token to raise clock skew error
+        with patch('requests.post', return_value=mock_token_response):
+            with patch('google.oauth2.id_token.verify_oauth2_token') as mock_verify:
+                mock_verify.side_effect = ValueError("Token used too early, 1794996878 < 1794996882")
+                
+                response = client.get('/api/v1/auth/google/callback/?code=test-code&state=test-state')
+        
+        # Assert response
+        assert response.status_code == 400
+        data = response.json()
+        assert data['error_type'] == 'google_oauth_verification_error'
+        assert 'redirect_url' in data
+        assert 'google_error=verification_failed' in data['redirect_url']
+        
+        # Assert no user was created
+        assert User.objects.count() == initial_user_count
+        
+        # Assert no session was set (user not logged in)
+        assert '_auth_user_id' not in client.session
+    
+    def test_valid_token_with_future_iat_passes_with_clock_skew(self, client: Client, monkeypatch):
+        """A token with iat 5s in the future passes when clock_skew is 10."""
+        from unittest.mock import patch, MagicMock
+        from django.contrib.auth import get_user_model
+        import time
+        
+        User = get_user_model()
+        
+        # Set up session state
+        session = client.session
+        session['google_oauth_state'] = 'test-state'
+        session.save()
+        
+        # Mock settings
+        monkeypatch.setattr('django.conf.settings.GOOGLE_CLIENT_ID', 'test-client-id')
+        monkeypatch.setattr('django.conf.settings.GOOGLE_CLIENT_SECRET', 'test-secret')
+        monkeypatch.setattr('django.conf.settings.GOOGLE_REDIRECT_URI', 'http://localhost:8000/callback')
+        monkeypatch.setattr('django.conf.settings.GOOGLE_OAUTH_CLOCK_SKEW_SECONDS', 10)
+        
+        # Mock the requests.post for token exchange
+        mock_token_response = MagicMock()
+        mock_token_response.json.return_value = {'id_token': 'fake-token'}
+        mock_token_response.raise_for_status = MagicMock()
+        
+        # Mock verify_oauth2_token to return valid user info with future iat
+        # (simulating a token issued 5 seconds in the future)
+        future_iat = int(time.time()) + 5
+        mock_idinfo = {
+            'sub': 'google-user-123',
+            'email': 'test@example.com',
+            'email_verified': True,
+            'given_name': 'Test',
+            'family_name': 'User',
+            'name': 'Test User',
+            'iss': 'accounts.google.com',
+            'iat': future_iat,
+        }
+        
+        with patch('requests.post', return_value=mock_token_response):
+            with patch('google.oauth2.id_token.verify_oauth2_token', return_value=mock_idinfo) as mock_verify:
+                response = client.get('/api/v1/auth/google/callback/?code=test-code&state=test-state')
+        
+        # Assert verify was called with clock_skew_in_seconds parameter
+        mock_verify.assert_called_once()
+        call_kwargs = mock_verify.call_args[1]
+        assert 'clock_skew_in_seconds' in call_kwargs
+        assert call_kwargs['clock_skew_in_seconds'] == 10
+        
+        # Assert response is a redirect (successful login)
+        assert response.status_code == 302
+        assert response.url == 'http://localhost:5173'
+        
+        # Assert user was created
+        user = User.objects.get(email='test@example.com')
+        assert user.first_name == 'Test'
+        assert user.last_name == 'User'
+        
+        # Assert user is logged in
+        assert '_auth_user_id' in client.session
