@@ -28,7 +28,7 @@ export default function StaffRoles({ user }: StaffRolesProps) {
   // New staff form state
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
-  const [newRole, setNewRole] = useState<AdminRole>('support_agent')
+  const [newRole, setNewRole] = useState<AdminRole>('platform_admin')
 
   const totalStaff = staffList.length
   const activeStaff = staffList.filter((s) => s.status === 'active').length
@@ -85,8 +85,6 @@ export default function StaffRoles({ user }: StaffRolesProps) {
   const roleOptions: { value: AdminRole; label: string }[] = [
     { value: 'super_admin', label: 'Super Admin (Full Authority)' },
     { value: 'platform_admin', label: 'Platform Admin (Operations)' },
-    { value: 'support_agent', label: 'Support Agent (Diagnose Only)' },
-    { value: 'analyst', label: 'Telemetry Analyst (Read-Only)' },
   ]
 
   return (
@@ -101,7 +99,7 @@ export default function StaffRoles({ user }: StaffRolesProps) {
             </span>
           </div>
           <p className="admin-page-subheading">
-            Internal operators roster across Super Admin, Platform Admin, Support Agent, and Telemetry Analyst roles.
+            Internal operators roster across Super Admin and Platform Admin roles.
           </p>
         </div>
         <div className="admin-page-actions">

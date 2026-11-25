@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ShieldCheck, ServerCog, Headphones, LineChart, ArrowRight, ShieldAlert } from 'lucide-react'
+import { ShieldCheck, ArrowRight, ShieldAlert } from 'lucide-react'
 import { ADMIN_ROLES } from '../../permissions/adminRoles'
 import type { AdminRole } from '../../permissions/adminRoles'
 
@@ -15,16 +15,6 @@ export default function RoleSelection({ onSelectRole }: RoleSelectionProps) {
       id: 'super_admin',
       icon: <ShieldCheck size={28} className="role-card-icon super-admin" />,
       isReady: true,
-    },
-    {
-      id: 'support_agent',
-      icon: <Headphones size={28} className="role-card-icon support-agent" />,
-      isReady: false,
-    },
-    {
-      id: 'analyst',
-      icon: <LineChart size={28} className="role-card-icon analyst" />,
-      isReady: false,
     },
   ]
 
@@ -62,8 +52,8 @@ export default function RoleSelection({ onSelectRole }: RoleSelectionProps) {
           </div>
         )}
 
-        {/* 4 Role Cards Grid */}
-        <div className="admin-roles-grid">
+        {/* Role Cards Grid */}
+        <div className="admin-roles-grid" style={{ maxWidth: '420px', margin: '0 auto' }}>
           {rolesConfig.map(({ id, icon, isReady }) => {
             const role = ADMIN_ROLES[id]
             const isSuperAdmin = id === 'super_admin'

@@ -574,6 +574,30 @@ def ask_assistant(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    # Check if AI access is disabled for this organization
+    if getattr(org, "ai_disabled", False):
+        AIRun.objects.create(
+            organization=org,
+            user=request.user,
+            session_id=str(request.data.get("session_id", uuid.uuid4())),
+            task_type=AIRun.TaskType.FINANCE_QUERY,
+            provider="none",
+            model_identifier="none",
+            status=AIRun.Status.PERMISSION_DENIED,
+            tool_calls=[],
+            prompt_tokens=0,
+            completion_tokens=0,
+            error_category="organization_ai_disabled",
+        )
+        return Response(
+            {
+                "error": "AI Assistant access has been disabled for this organization. Please contact your platform administrator.",
+                "error_type": "permission_denied",
+                "request_id": request_id,
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
     session_id = str(request.data.get("session_id", uuid.uuid4()))
     tool_calls_used = []
     provider = "none"

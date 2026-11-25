@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Users as UsersIcon, Search, Filter, ShieldCheck, UserCheck, UserX,
-  KeyRound, Mail, LogOut, Check, Eye, ChevronLeft, ChevronRight, AlertCircle
+  KeyRound, Mail, LogOut, Check, Eye, ChevronLeft, ChevronRight, AlertCircle, RefreshCw
 } from 'lucide-react'
 import AdminStatCard from '../components/AdminStatCard'
 import StatusBadge from '../components/StatusBadge'
@@ -10,12 +10,37 @@ import AdminButton from '../components/AdminButton'
 import AdminSelect from '../components/AdminSelect'
 import AdminTableActionMenu from '../components/AdminTableActionMenu'
 import AdminConfirmDialog from '../components/AdminConfirmDialog'
-import { MOCK_USERS, type UserRecord } from '../services/mockDataService'
+import { adminApi, type UserRecord } from '../services/adminApi'
 
 export default function Users() {
-  const [users, setUsers] = useState<UserRecord[]>(MOCK_USERS)
+  const [users, setUsers] = useState<UserRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'pending'>('all')
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const data = await adminApi.getUsers()
+      setUsers(data)
+      setError(null)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load customers from database.')
+    } finally {
+      setLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await fetchUsers()
+  }
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -103,12 +128,32 @@ export default function Users() {
           </p>
         </div>
         <div className="admin-page-actions">
-          <div className="admin-data-source-pill">
-            <span className="source-dot mock" />
-            <span>Telemetry Simulation Data</span>
+          <div className="admin-data-source-pill" title="Live Database Data">
+            <span className="source-dot live" />
+            <span>Live Data</span>
           </div>
+          <AdminButton
+            variant="outline"
+            size="sm"
+            icon={<RefreshCw size={13} className={isRefreshing ? 'spin' : ''} />}
+            onClick={handleRefresh}
+            loading={isRefreshing}
+            tooltip="Refresh customer accounts from database"
+          >
+            Refresh
+          </AdminButton>
         </div>
       </div>
+
+      {error && (
+        <div className="admin-alert admin-alert-danger" style={{ marginBottom: '1rem' }}>
+          <AlertCircle size={16} />
+          <span>{error}</span>
+          <AdminButton variant="ghost" size="sm" onClick={handleRefresh} style={{ marginLeft: 'auto' }}>
+            Retry
+          </AdminButton>
+        </div>
+      )}
 
       {actionSuccessMsg && (
         <div className="admin-alert admin-alert-info">
@@ -129,7 +174,7 @@ export default function Users() {
           label="Active Customers"
           value={activeCount}
           changeType="positive"
-          change={`${Math.round((activeCount / totalCount) * 100)}%`}
+          change={totalCount > 0 ? `${Math.round((activeCount / totalCount) * 100)}%` : '0%'}
           icon={<UserCheck size={20} className="text-success" />}
           description="Operational customer accounts"
         />
@@ -216,7 +261,15 @@ export default function Users() {
               </tr>
             </thead>
             <tbody>
-              {paginatedUsers.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="admin-table-empty">
+                    <RefreshCw size={24} className="spin" style={{ animation: 'spin 1s linear infinite', margin: '0 auto 0.75rem' }} />
+                    <div className="empty-title">Loading customers...</div>
+                    <div className="empty-desc">Fetching customer accounts from the database.</div>
+                  </td>
+                </tr>
+              ) : paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="admin-table-empty">
                     <UsersIcon size={36} className="empty-icon" />

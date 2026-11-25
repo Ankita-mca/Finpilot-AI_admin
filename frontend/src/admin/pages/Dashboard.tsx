@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Building2, Users, CreditCard, BrainCircuit, AlertTriangle,
   Clock, ShieldAlert, Sparkles, TrendingUp, AlertCircle,
@@ -21,7 +21,8 @@ import AdminStatCard from '../components/AdminStatCard'
 import StatusBadge from '../components/StatusBadge'
 import AdminButton from '../components/AdminButton'
 import AdminSelect from '../components/AdminSelect'
-import { OVERVIEW_DASHBOARD_DATA } from '../services/mockDataService'
+import { OVERVIEW_DASHBOARD_DATA, type RecentOrgActivityItem } from '../services/mockDataService'
+import { adminApi, type DashboardStats } from '../services/adminApi'
 import type { AdminUser } from '../types/admin.types'
 
 interface DashboardProps {
@@ -34,6 +35,24 @@ type RangeOption = '7d' | '30d' | '90d'
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const [chartRange, setChartRange] = useState<RangeOption>('7d')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [liveStats, setLiveStats] = useState<DashboardStats | null>(null)
+  const [isLive, setIsLive] = useState(false)
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const data = await adminApi.getDashboardStats()
+      setLiveStats(data)
+      setIsLive(true)
+    } catch {
+      setIsLive(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchStats()
+    const interval = setInterval(fetchStats, 30000)
+    return () => clearInterval(interval)
+  }, [fetchStats])
 
   const handleNav = (path: string) => {
     if (onNavigate) {
@@ -45,17 +64,29 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
   const handleRefresh = () => {
     setIsRefreshing(true)
-    setTimeout(() => setIsRefreshing(false), 600)
+    fetchStats().finally(() => setIsRefreshing(false))
   }
 
   // Active chart dataset based on date range selection
   const chartData = OVERVIEW_DASHBOARD_DATA.activityTrends[chartRange]
-  const subData = OVERVIEW_DASHBOARD_DATA.subscriptionOverview
+  const subData = liveStats
+    ? { active: liveStats.subscriptions.active, trial: liveStats.subscriptions.trial, pastDue: liveStats.subscriptions.past_due, total: liveStats.subscriptions.total }
+    : OVERVIEW_DASHBOARD_DATA.subscriptionOverview
   const closedCount = Math.max(0, subData.total - (subData.active + subData.trial + subData.pastDue))
   const aiData = OVERVIEW_DASHBOARD_DATA.aiUsage
   const opsData = OVERVIEW_DASHBOARD_DATA.operationalHealth
   const alertsData = OVERVIEW_DASHBOARD_DATA.importantAlerts
-  const recentActivities = OVERVIEW_DASHBOARD_DATA.recentActivity
+  const recentActivities: RecentOrgActivityItem[] = liveStats && liveStats.recent_activity.length > 0
+    ? liveStats.recent_activity.map((a, i) => ({
+        id: a.id || String(i),
+        organizationName: a.organization || 'Platform System',
+        activity: a.summary || `${a.actor} performed ${a.action}`,
+        timestamp: new Date(a.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'active' as const,
+        statusLabel: a.action,
+        orgId: '',
+      }))
+    : OVERVIEW_DASHBOARD_DATA.recentActivity
 
   const rangeOptions = [
     { value: '7d' as RangeOption, label: 'Last 7 Days' },
@@ -76,9 +107,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
         {/* Dashboard Toolbar: Kept separate from header profile dropdown */}
         <div className="admin-dashboard-toolbar">
-          <div className="admin-data-source-pill" title="Telemetry Simulation Environment">
-            <span className="source-dot mock" />
-            <span>Demo Data Active</span>
+          <div className="admin-data-source-pill" title={isLive ? 'Live database data' : 'Demo data'}>
+            <span className={`source-dot ${isLive ? 'live' : 'mock'}`} />
+            <span>{isLive ? 'Live Data' : 'Demo Data Active'}</span>
           </div>
 
           <AdminSelect<RangeOption>
@@ -108,45 +139,45 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         {/* Card 1: Total Organizations */}
         <AdminStatCard
           label="Total Organizations"
-          value="1,248"
-          change="+12.5%"
+          value={liveStats ? String(liveStats.organizations.total) : '—'}
+          change={liveStats ? `${liveStats.organizations.active} active` : '+12.5%'}
           changeType="positive"
           icon={<Building2 size={20} />}
-          description="vs last month"
-          isDemo={true}
+          description={isLive ? 'from database' : 'vs last month'}
+          isDemo={!isLive}
         />
 
-        {/* Card 2: Total Customers */}
+        {/* Card 2: Total Users */}
         <AdminStatCard
-          label="Total Customers"
-          value="8,642"
-          change="+8.2%"
+          label="Total Users"
+          value={liveStats ? String(liveStats.users.total) : '—'}
+          change={isLive ? 'active accounts' : '+8.2%'}
           changeType="positive"
           icon={<Users size={20} />}
-          description="vs last month"
-          isDemo={true}
+          description={isLive ? 'from database' : 'vs last month'}
+          isDemo={!isLive}
         />
 
         {/* Card 3: Active Subscriptions */}
         <AdminStatCard
           label="Active Subscriptions"
-          value="986"
-          change="+6.4%"
+          value={liveStats ? String(liveStats.subscriptions.active) : '—'}
+          change={liveStats ? `${liveStats.subscriptions.trial} on trial` : '+6.4%'}
           changeType="positive"
           icon={<CreditCard size={20} />}
-          description="vs last month"
-          isDemo={true}
+          description={isLive ? 'from database' : 'vs last month'}
+          isDemo={!isLive}
         />
 
         {/* Card 4: AI Requests */}
         <AdminStatCard
-          label="AI Requests"
-          value="42.8K"
-          change="+18.3%"
+          label="AI Requests Today"
+          value={liveStats ? String(liveStats.ai_requests.today) : '—'}
+          change={liveStats ? `${liveStats.ai_requests.this_month} this month` : '+18.3%'}
           changeType="positive"
           icon={<BrainCircuit size={20} />}
-          description="vs last month"
-          isDemo={true}
+          description={isLive ? 'from database' : 'vs last month'}
+          isDemo={!isLive}
         />
       </section>
 

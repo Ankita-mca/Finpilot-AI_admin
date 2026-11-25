@@ -29,6 +29,7 @@ class Organization(models.Model):
     timezone = models.CharField(max_length=64, default="Asia/Kolkata")
     billing_address = models.TextField(blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    ai_disabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)
 

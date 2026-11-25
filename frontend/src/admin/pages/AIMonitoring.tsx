@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Bot, AlertTriangle, ShieldAlert, ShieldCheck, Power,
   Zap, DollarSign, Activity, CheckCircle2, AlertCircle, RefreshCw, Eye
@@ -8,12 +8,33 @@ import AdminButton from '../components/AdminButton'
 import AdminConfirmDialog from '../components/AdminConfirmDialog'
 import AdminTableActionMenu from '../components/AdminTableActionMenu'
 import { MOCK_AI_MONITORING, type AIMonitoringData } from '../services/mockDataService'
+import { adminApi } from '../services/adminApi'
 
 export default function AIMonitoring() {
   const [data, setData] = useState<AIMonitoringData>(MOCK_AI_MONITORING)
   const [killSwitchModal, setKillSwitchModal] = useState(false)
   const [targetOrgDisable, setTargetOrgDisable] = useState<{ id: string; name: string; current: boolean } | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isLive, setIsLive] = useState(false)
+
+  const fetchMonitoring = useCallback(async () => {
+    try {
+      const res = await adminApi.getAIMonitoring()
+      if (res && res.organizationUsage) {
+        setData(res)
+        setIsLive(true)
+      }
+    } catch (err) {
+      console.error('Failed to fetch AI monitoring telemetry:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchMonitoring()
+    const timer = setInterval(fetchMonitoring, 10000)
+    return () => clearInterval(timer)
+  }, [fetchMonitoring])
 
   const handleToggleKillSwitch = (reason?: string) => {
     const newState = !data.globalKillSwitchActive
@@ -27,20 +48,21 @@ export default function AIMonitoring() {
     setTimeout(() => setToastMsg(null), 5000)
   }
 
-  const handleToggleOrgAi = (reason?: string) => {
+  const handleToggleOrgAi = async (reason?: string) => {
     if (!targetOrgDisable) return
     const { id, name, current } = targetOrgDisable
-    setData((prev) => ({
-      ...prev,
-      organizationUsage: prev.organizationUsage.map((o) =>
-        o.organizationId === id ? { ...o, isAiDisabled: !current } : o
-      ),
-    }))
-    setTargetOrgDisable(null)
-    setToastMsg(
-      `AI access for ${name} has been ${current ? 're-enabled' : 'disabled'}${reason ? ` (Reason: ${reason})` : ''}. (Demo Action)`
-    )
-    setTimeout(() => setToastMsg(null), 5000)
+    try {
+      await adminApi.toggleOrgAI(id)
+      await fetchMonitoring()
+      setToastMsg(
+        `AI access for ${name} has been ${current ? 'disabled' : 'enabled'}${reason ? ` (Reason: ${reason})` : ''}.`
+      )
+    } catch (err: any) {
+      setToastMsg(`Failed to toggle AI for ${name}: ${err?.message || 'Server error'}`)
+    } finally {
+      setTargetOrgDisable(null)
+      setTimeout(() => setToastMsg(null), 5000)
+    }
   }
 
   return (
@@ -54,6 +76,19 @@ export default function AIMonitoring() {
           </p>
         </div>
         <div className="admin-page-actions">
+          <AdminButton
+            variant="outline"
+            icon={<RefreshCw size={14} className={isRefreshing ? 'spin' : ''} />}
+            onClick={async () => {
+              setIsRefreshing(true)
+              await fetchMonitoring()
+              setIsRefreshing(false)
+            }}
+            loading={isRefreshing}
+            tooltip="Refresh live AI telemetry from database"
+          >
+            Refresh
+          </AdminButton>
           <AdminButton
             variant={data.globalKillSwitchActive ? 'primary' : 'danger'}
             icon={<Power size={14} />}
@@ -208,7 +243,7 @@ export default function AIMonitoring() {
                   <td className="font-semibold">{org.organizationName}</td>
                   <td><span className="font-mono text-xs">{org.primaryModel}</span></td>
                   <td>{org.requestsToday.toLocaleString()}</td>
-                  <td>{(org.tokensToday / 1000).toFixed(0)}k tokens</td>
+                  <td className="text-muted">—</td>
                   <td>
                     <span className={org.errorRate > 1 ? 'text-danger font-semibold' : 'text-success'}>
                       {org.errorRate}%
